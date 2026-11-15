@@ -1,0 +1,23 @@
+# Local production-like setup: the town plus Postgres.  Run: docker compose up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agentville
+      POSTGRES_PASSWORD: agentville
+      POSTGRES_DB: agentville
+    volumes:
+      - db:/var/lib/postgresql/data
+  town:
+    build: .
+    ports:
+      - "8787:8787"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://agentville:agentville@db:5432/agentville
+    depends_on:
+      - db
+volumes:
+  db:

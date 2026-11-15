@@ -1,20 +1,22 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Loader } from '@react-three/drei';
 import { World } from './scene/World';
 import { Hud } from './ui/Hud';
 import { useView } from './store';
 import { ErrorScreen } from './ErrorScreen';
+import { startTown } from './town/connection';
 
 export function App() {
   const clearCutaway = useView((s) => s.clearCutaway);
+  useEffect(startTown, []);
   return (
     <ErrorScreen>
       <Canvas
         shadows="soft"
         flat
         dpr={[1, 2]}
-        camera={{ position: [24, 15, 18], fov: 40, near: 0.1, far: 5000 }}
+        camera={{ position: [46, 34, 44], fov: 40, near: 0.1, far: 5000 }}
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         onPointerMissed={clearCutaway}
       >

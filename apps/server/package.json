@@ -1,0 +1,28 @@
+{
+  "name": "@agentville/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Runs the town around the clock: simulation, LLM minds, budget, database and the live WebSocket feed.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentville/core": "workspace:*",
+    "@anthropic-ai/sdk": "1.3.0",
+    "pg": "8.16.3",
+    "tsx": "4.20.6",
+    "ws": "8.18.3",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "@types/pg": "8.15.5",
+    "@types/ws": "8.18.1",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

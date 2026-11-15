@@ -10,7 +10,6 @@ import { useHdri } from '../assets';
 /** Sun, moon, sky, image-based light and fog, all driven by the hour of the day. */
 export function Lighting() {
   const hour = useView((s) => s.hour);
-  const setHour = useView((s) => s.setHour);
   const scene = useThree((s) => s.scene);
   const m = useMats();
   const hdri = useHdri();
@@ -20,10 +19,7 @@ export function Lighting() {
   const stars = useRef<Group>(null);
   const state = sunAt(hour);
 
-  useFrame((_, dt) => {
-    const view = useView.getState();
-    // Playing advances one simulated hour every 6 real seconds.
-    if (view.playing) setHour(view.hour + dt / 6);
+  useFrame(() => {
     const s = sunAt(useView.getState().hour);
     if (sun.current) {
       sun.current.position.copy(s.direction).multiplyScalar(80);
@@ -59,12 +55,12 @@ export function Lighting() {
         ref={sun}
         castShadow
         shadow-mapSize={[4096, 4096]}
-        shadow-camera-left={-45}
-        shadow-camera-right={45}
-        shadow-camera-top={45}
-        shadow-camera-bottom={-45}
+        shadow-camera-left={-85}
+        shadow-camera-right={85}
+        shadow-camera-top={60}
+        shadow-camera-bottom={-60}
         shadow-camera-near={1}
-        shadow-camera-far={200}
+        shadow-camera-far={260}
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}
       />

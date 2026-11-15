@@ -1,65 +1,101 @@
+import { BASE_SPEED, clockText, dayOf, DAYS_PER_YEAR, weekdayOf, yearOf } from '@agentville/core';
 import { useView } from '../store';
+import { useTown } from '../town/store';
+import { AgentPanel } from './AgentPanel';
+import { CameraPad } from './CameraPad';
+import { Feed } from './Feed';
 
-const PRESETS: { label: string; hour: number }[] = [
-  { label: 'Morning', hour: 8 },
-  { label: 'Noon', hour: 13 },
-  { label: 'Sunset', hour: 17.6 },
-  { label: 'Night', hour: 22 },
-];
+const SPEEDS = [1, 10, 60];
 
-function formatHour(h: number): string {
-  const hh = Math.floor(h);
-  const mm = Math.floor((h - hh) * 60);
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+/** Real time away, said as town time: "3 days" or "5 hours". */
+function awayText(seconds: number): string {
+  const simMinutes = seconds * BASE_SPEED;
+  if (simMinutes >= 1440 * 1.5) return `${Math.round(simMinutes / 1440)} days`;
+  return `${Math.max(1, Math.round(simMinutes / 60))} hours`;
 }
 
-/** Look-test controls: time of day and how to use the camera. */
+function StatusChip() {
+  const mode = useTown((s) => s.mode);
+  const status = useTown((s) => s.status);
+  if (mode === 'connecting') return <span className="chip">Connecting…</span>;
+  if (mode === 'demo') return <span className="chip demo">Demo in your browser</span>;
+  if (mode === 'cloud' || mode === 'watch') {
+    const c = status?.calls;
+    const gemini = status?.mind === 'gemini';
+    return (
+      <span className={`chip ${gemini ? 'live' : 'demo'}`} title={status?.note ?? ''}>
+        {mode === 'watch' ? 'Watching live' : 'Live'} · {gemini ? 'Gemini' : 'scripted'}
+        {c && ` · ${c.usedToday} of ${c.dailyLimit} calls today`}
+      </span>
+    );
+  }
+  const b = status?.budget;
+  return (
+    <span className={`chip ${status?.mind !== 'scripted' ? 'live' : 'demo'}`} title={status?.note ?? ''}>
+      Live · {status?.mind === 'claude' ? 'Claude' : status?.mind === 'gemini' ? 'Gemini' : 'scripted'}
+      {status?.calls && ` · ${status.calls.usedToday} of ${status.calls.dailyLimit} calls today`}
+      {b && ` · $${b.spentTodayUsd.toFixed(2)} of $${b.dailyCapUsd.toFixed(2)} today`}
+    </span>
+  );
+}
+
+/** God-view header: the town clock, where the town runs, and the demo's speed control. */
 export function Hud() {
-  const hour = useView((s) => s.hour);
-  const playing = useView((s) => s.playing);
-  const setHour = useView((s) => s.setHour);
-  const setPlaying = useView((s) => s.setPlaying);
+  const time = useTown((s) => s.tick?.time ?? 0);
+  const mode = useTown((s) => s.mode);
+  const demoSpeed = useTown((s) => s.demoSpeed);
+  const setDemoSpeed = useTown((s) => s.setDemoSpeed);
+  const note = useTown((s) => s.status?.note ?? null);
+  const catchUp = useTown((s) => s.catchUp);
   const cutaway = useView((s) => s.cutaway);
   const clearCutaway = useView((s) => s.clearCutaway);
+  const cutName = useTown((s) => s.buildings.find((b) => b.id === cutaway)?.name);
 
   return (
     <>
       <header className="hud card">
         <div className="brand">
           <span className="title">Agentville</span>
-          <span className="sub">Look test · semi-realistic</span>
+          <span className="sub">Linden Street</span>
         </div>
         <div className="divider" />
         <div className="clock">
-          <span className="sub">Time of day</span>
-          <span className="time">{formatHour(hour)}</span>
+          <span className="sub">
+            {weekdayOf(time)} · day {((dayOf(time) - 1) % DAYS_PER_YEAR) + 1}, year {yearOf(time)}
+          </span>
+          <span className="time">{clockText(time)}</span>
         </div>
-        <label className="slider">
-          <span className="visually-hidden">Time of day</span>
-          <input type="range" min={0} max={24} step={0.05} value={hour} onChange={(e) => setHour(Number(e.target.value))} />
-        </label>
-        <div className="presets" role="group" aria-label="Time presets">
-          {PRESETS.map((p) => (
-            <button key={p.label} type="button" onClick={() => setHour(p.hour)}>
-              {p.label}
-            </button>
-          ))}
-          <button type="button" className={playing ? 'active' : ''} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
-            {playing ? 'Pause' : 'Play'}
-          </button>
-        </div>
+        <StatusChip />
+        {mode === 'demo' && (
+          <div className="presets" role="group" aria-label="Demo speed">
+            {SPEEDS.map((s) => (
+              <button key={s} type="button" className={demoSpeed === s ? 'active' : ''} aria-pressed={demoSpeed === s} onClick={() => setDemoSpeed(s)}>
+                {s}×
+              </button>
+            ))}
+          </div>
+        )}
+        {note && mode !== 'demo' && mode !== 'connecting' && !catchUp && <span className="note">{note}</span>}
+        {catchUp && (
+          <span className="note" role="status">
+            Catching up on {awayText(catchUp.awaySeconds)} that passed while nobody watched… {Math.round(catchUp.done * 100)}%
+          </span>
+        )}
       </header>
 
       {cutaway && (
         <div className="cutaway card">
-          <span>Looking inside the {cutaway === 'cohen' ? 'Cohen' : 'Levi'} home</span>
+          <span>Inside {cutName ?? 'the building'}</span>
           <button type="button" onClick={clearCutaway}>
-            Exit cutaway
+            Close
           </button>
         </div>
       )}
 
-      <div className="hint">Drag to orbit · Right-drag to pan · Scroll to zoom · Click a house to see inside</div>
+      <CameraPad />
+      <Feed />
+      <AgentPanel />
+      <div className="hint">Drag or WASD to move · Right-drag, Q/E or the buttons to turn all the way around · Scroll to zoom · Double-click to fly there · Click a building to look inside · Click a person to follow them</div>
     </>
   );
 }

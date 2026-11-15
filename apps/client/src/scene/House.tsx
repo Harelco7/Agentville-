@@ -1,11 +1,12 @@
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useMemo } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Material, PointLight } from 'three';
+import { Html } from '@react-three/drei';
+import { Material } from 'three';
+import type { BuildingKind } from '@agentville/core';
 import { gable, Opening, scaledBox, wallPieces } from './geometry';
 import { useMats } from './materials';
-import { sunAt } from './sun';
 import { useView } from '../store';
+import { CafeInterior, OfficeInterior, ShopInterior } from './Interiors';
 
 const W = 10; // width along x (m)
 const D = 8; // depth along z (m)
@@ -161,18 +162,20 @@ function Interior({ accent }: { accent: string }) {
 
 export interface HouseProps {
   id: string;
+  kind: Exclude<BuildingKind, 'park' | 'tech'>;
+  name: string;
   position: [number, number, number];
+  rotationY: number;
   walls: 'brick' | 'plaster' | 'plasterBlue';
   roof: 'red' | 'slate';
   accent: string;
 }
 
-/** A detached house that faces +z. Click it to toggle the cutaway view. */
-export function House({ id, position, walls, roof, accent }: HouseProps) {
+/** A detached building that faces +z in its own frame: a home, the café, the shop or the office. Click it to see inside. */
+export function House({ id, kind, name, position, rotationY, walls, roof, accent }: HouseProps) {
   const m = useMats();
   const cut = useView((s) => s.cutaway === id);
   const toggle = useView((s) => s.toggleCutaway);
-  const light = useRef<PointLight>(null);
   const wallMat = m[walls];
   const roofMat = roof === 'red' ? m.roofRed : m.roofSlate;
   const texScale = walls === 'brick' ? 1.4 : 2;
@@ -181,19 +184,13 @@ export function House({ id, position, walls, roof, accent }: HouseProps) {
   const pitch = Math.atan2(RISE, D / 2 + OVERHANG);
   const gableGeo = useMemo(() => gable(D, RISE, T, texScale), [texScale]);
 
-  useFrame(() => {
-    if (!light.current) return;
-    const { night } = sunAt(useView.getState().hour);
-    light.current.intensity = 6 + night * 22 + (cut ? 10 : 0);
-  });
-
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     toggle(id);
   };
 
   return (
-    <group position={position} onClick={onClick}>
+    <group position={position} rotation={[0, rotationY, 0]} onClick={onClick}>
       {/* slab and floor */}
       <mesh position={[0, BASE / 2, 0]} geometry={scaledBox(W + 0.3, BASE, D + 0.3, 2)} material={m.concrete} receiveShadow castShadow />
       <mesh position={[0, BASE + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} material={m.floorWood} receiveShadow>
@@ -208,8 +205,15 @@ export function House({ id, position, walls, roof, accent }: HouseProps) {
       <Wall length={W - 2 * T} openings={PARTITION} material={m.paint} position={[0, BASE, -0.5]} texScale={2} />
       <Wall length={3.3} openings={PARTITION_SIDE} material={m.paint} position={[0.5, BASE, -2.15]} rotationY={Math.PI / 2} texScale={2} />
 
-      <Interior accent={accent} />
-      <pointLight ref={light} position={[0, BASE + 2.4, 0.5]} color="#ffcf96" distance={14} decay={2} intensity={6} />
+      {kind === 'home' && <Interior accent={accent} />}
+      {kind === 'cafe' && <CafeInterior accent={accent} />}
+      {kind === 'shop' && <ShopInterior accent={accent} />}
+      {kind === 'office' && <OfficeInterior accent={accent} />}
+      {kind !== 'home' && (
+        <Html position={[0, BASE + H + 0.2, D / 2 + 0.3]} center zIndexRange={[5, 0]}>
+          <div className="sign">{name}</div>
+        </Html>
+      )}
 
       {/* roof, gables and chimney hide in cutaway */}
       {!cut && (
