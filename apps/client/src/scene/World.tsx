@@ -1,57 +1,93 @@
+import { useEffect, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { EffectComposer, Bloom, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
+import { buildingRotation, LOT_XS, LOT_Z, WALK_Z, type Building } from '@agentville/core';
 import { MaterialsContext, useMaterials } from './materials';
 import { Lighting } from './Lighting';
-import { Ground, Hedge, StreetLight, Tree, WALK_Z } from './Street';
+import { Ground, Hedge, StreetLight, Tree } from './Street';
 import { House } from './House';
-import { Agent } from './Agent';
+import { Park } from './Interiors';
+import { People, TownClock } from './Agents';
+import { CutawayLight } from './CutawayLight';
+import { useTown } from '../town/store';
 
-const HOUSE_Z = -14;
+/** Trees behind and between the lots, placed the same way every time. */
+function useTrees(): { p: [number, number, number]; s: number; seed: number }[] {
+  return useMemo(() => {
+    const trees: { p: [number, number, number]; s: number; seed: number }[] = [];
+    let seed = 1;
+    for (const side of [-1, 1]) {
+      for (const x of [-60, ...LOT_XS.map((v) => v + 10)]) {
+        trees.push({ p: [x + ((seed * 7) % 5) - 2, 0, side * (LOT_Z + 6 + ((seed * 3) % 4))], s: 0.95 + ((seed * 13) % 5) / 10, seed: seed++ });
+      }
+      for (const x of [-70, 70]) trees.push({ p: [x, 0, side * (LOT_Z - 2)], s: 1.2, seed: seed++ });
+    }
+    return trees;
+  }, []);
+}
 
-/** The look-test street: two houses, gardens, trees, street lights and two people. */
+function Lot({ b }: { b: Building }) {
+  const position: [number, number, number] = [b.x, 0, b.side * LOT_Z];
+  const rotationY = buildingRotation(b);
+  if (b.kind === 'park') {
+    return (
+      <group>
+        <Park position={position} rotationY={rotationY} />
+        <Tree position={[b.x - 3.5, 0, b.side * (LOT_Z + 3.5)]} scale={1.2} seed={b.x + 3} />
+        <Tree position={[b.x + 4, 0, b.side * (LOT_Z + 4)]} scale={1.05} seed={b.x + 9} />
+      </group>
+    );
+  }
+  // Front hedges with a gap for the path. Local z of the hedge line is 7.4 from the lot centre.
+  const hedgeZ = b.side * (LOT_Z - 7.4);
+  return (
+    <group>
+      <House id={b.id} kind={b.kind} name={b.name} position={position} rotationY={rotationY} walls={b.walls} roof={b.roof} accent={b.accent} />
+      <Hedge position={[b.x - 4.1, 0, hedgeZ]} length={6.6} />
+      <Hedge position={[b.x + 4.1, 0, hedgeZ]} length={6.6} />
+    </group>
+  );
+}
+
+/** In development, expose the camera and controls for automated screenshots. */
+function DevHooks() {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls);
+  useEffect(() => {
+    (window as unknown as { __cam: unknown }).__cam = { camera, controls };
+  }, [camera, controls]);
+  return null;
+}
+
+/** The whole street, built from the town the simulation describes. */
 export function World() {
   const materials = useMaterials();
+  const buildings = useTown((s) => s.buildings);
+  const trees = useTrees();
   return (
     <MaterialsContext.Provider value={materials}>
+      <TownClock />
+      {import.meta.env.DEV && <DevHooks />}
       <Lighting />
       <Ground />
-
-      <House id="cohen" position={[-9, 0, HOUSE_Z]} walls="brick" roof="slate" accent="#8a5a44" />
-      <House id="levi" position={[9, 0, HOUSE_Z]} walls="plaster" roof="red" accent="#4f6d7a" />
-
-      {/* front hedges with a gap for each path */}
-      {[-9, 9].map((x) => (
-        <group key={x}>
-          <Hedge position={[x - 4.1, 0, -6.6]} length={6.6} />
-          <Hedge position={[x + 4.1, 0, -6.6]} length={6.6} />
-        </group>
+      {buildings.map((b) => (
+        <Lot key={b.id} b={b} />
       ))}
+      {trees.map((t) => (
+        <Tree key={t.seed} position={t.p} scale={t.s} seed={t.seed} />
+      ))}
+      {[-60, -20, 20, 60].map((x) => (
+        <StreetLight key={`n${x}`} position={[x, 0.16, -WALK_Z - 0.8]} facing={1} />
+      ))}
+      {[-40, 0, 40].map((x) => (
+        <StreetLight key={`s${x}`} position={[x, 0.16, WALK_Z + 0.8]} facing={-1} />
+      ))}
+      <CutawayLight />
+      <People />
 
-      <Tree position={[-17, 0, -20]} scale={1.15} seed={3} />
-      <Tree position={[0, 0, -21]} scale={1.3} seed={7} />
-      <Tree position={[17, 0, -19]} scale={1.05} seed={11} />
-      <Tree position={[-14, 0, 8.5]} seed={5} />
-      <Tree position={[4, 0, 9]} scale={1.2} seed={13} />
-      <Tree position={[20, 0, 8]} scale={0.95} seed={17} />
-      <Tree position={[-30, 0, -12]} scale={1.2} seed={19} />
-      <Tree position={[30, 0, -10]} scale={1.1} seed={23} />
-
-      <StreetLight position={[-18, 0.16, -WALK_Z - 0.8]} facing={1} />
-      <StreetLight position={[0, 0.16, -WALK_Z - 0.8]} facing={1} />
-      <StreetLight position={[18, 0.16, -WALK_Z - 0.8]} facing={1} />
-
-      <Agent name="Maya" activity="walking to the café" color="#c0563b" position={[-6, 0.16, -WALK_Z]} walkBetween={[-24, 24]} />
-      <Agent name="Dana" activity="waiting for Maya" color="#3f6f9c" position={[-8.2, 0.06, -7.6]} facing={0.6} />
-
-      <OrbitControls
-        makeDefault
-        target={[0, 1.5, -8]}
-        minDistance={6}
-        maxDistance={90}
-        maxPolarAngle={1.45}
-        enableDamping
-      />
+      <OrbitControls makeDefault target={[0, 1, 0]} minDistance={6} maxDistance={150} maxPolarAngle={1.45} enableDamping />
 
       <EffectComposer multisampling={0} enableNormalPass={false}>
         <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} quality="medium" />

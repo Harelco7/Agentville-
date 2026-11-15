@@ -5,8 +5,12 @@
   "description": "A persistent 3D town of autonomous AI agents.",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
-    "dev": "pnpm --filter @agentville/client dev",
+    "dev": "pnpm --parallel --filter @agentville/server --filter @agentville/client dev",
+    "dev:client": "pnpm --filter @agentville/client dev",
+    "dev:server": "pnpm --filter @agentville/server dev",
     "build": "pnpm --filter @agentville/client build",
+    "start": "pnpm --filter @agentville/server start",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   }
 }

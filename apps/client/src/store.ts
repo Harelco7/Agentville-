@@ -1,25 +1,20 @@
 import { create } from 'zustand';
 
-/** Client-only view state for the look test. The real world clock moves to the server in Phase 1. */
+/** View-only state: the light's hour of day and the building shown in cutaway. */
 interface ViewState {
-  /** Hour of the day, 0 to 24. */
+  /** Hour of the day, 0 to 24, following the town clock. */
   hour: number;
-  /** When true, time advances on its own. */
-  playing: boolean;
-  /** The house shown in cutaway, or null. */
+  /** The building shown in cutaway, or null. */
   cutaway: string | null;
   setHour: (hour: number) => void;
-  setPlaying: (playing: boolean) => void;
   toggleCutaway: (id: string) => void;
   clearCutaway: () => void;
 }
 
 export const useView = create<ViewState>((set) => ({
-  hour: 16.5,
-  playing: false,
+  hour: 7,
   cutaway: null,
   setHour: (hour) => set({ hour: ((hour % 24) + 24) % 24 }),
-  setPlaying: (playing) => set({ playing }),
   toggleCutaway: (id) => set((s) => ({ cutaway: s.cutaway === id ? null : id })),
   clearCutaway: () => set({ cutaway: null }),
 }));

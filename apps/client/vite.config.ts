@@ -22,5 +22,10 @@ export default defineConfig(({ mode }) => ({
     mode === 'artifact'
       ? { alias: [{ find: /^\.\/assetSource$/, replacement: '/src/assetSource.artifact.ts' }] }
       : undefined,
-  server: { port: 5173, host: true },
+  server: {
+    port: 5173,
+    host: true,
+    // In development the client talks to the town server running next to it.
+    proxy: { '/ws': { target: 'ws://localhost:8787', ws: true }, '/api': 'http://localhost:8787' },
+  },
 }));
