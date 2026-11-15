@@ -69,7 +69,7 @@ export function Hud() {
 
       <Feed />
       <AgentPanel />
-      <div className="hint">Drag to orbit · Right-drag to pan · Scroll to zoom · Click a building to look inside · Click a person to follow them</div>
+      <div className="hint">Drag or WASD to move · Right-drag or Q/E to turn · Scroll to zoom · Double-click to fly there · Click a building to look inside · Click a person to follow them</div>
     </>
   );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { EffectComposer, Bloom, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { buildingRotation, LOT_XS, LOT_Z, WALK_Z, type Building } from '@agentville/core';
@@ -11,6 +10,7 @@ import { House } from './House';
 import { Park } from './Interiors';
 import { People, TownClock } from './Agents';
 import { CutawayLight } from './CutawayLight';
+import { CameraRig } from './CameraRig';
 import { useTown } from '../town/store';
 
 /** Trees behind and between the lots, placed the same way every time. */
@@ -87,7 +87,7 @@ export function World() {
       <CutawayLight />
       <People />
 
-      <OrbitControls makeDefault target={[0, 1, 0]} minDistance={6} maxDistance={150} maxPolarAngle={1.45} enableDamping />
+      <CameraRig />
 
       <EffectComposer multisampling={0} enableNormalPass={false}>
         <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} quality="medium" />
