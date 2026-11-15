@@ -10,7 +10,7 @@ import {
   Texture,
 } from 'three';
 
-const T = '/assets/textures/';
+const T = `${import.meta.env.BASE_URL}assets/textures/`;
 
 function repeatable<T extends Texture>(tex: T, srgb = false): T {
   tex.wrapS = tex.wrapT = RepeatWrapping;

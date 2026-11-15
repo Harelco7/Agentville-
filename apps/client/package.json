@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:artifact": "tsc -b && vite build --mode artifact --outDir dist-artifact",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },
@@ -20,6 +21,7 @@
     "zustand": "4.5.5"
   },
   "devDependencies": {
+    "@types/node": "22.9.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@types/three": "0.169.0",

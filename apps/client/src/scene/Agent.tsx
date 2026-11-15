@@ -3,8 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useAnimations, useGLTF } from '@react-three/drei';
 import { Group, Mesh, MeshStandardMaterial } from 'three';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { MODEL_URL } from '../assetUrls';
 
-const MODEL = '/assets/models/Xbot.glb';
+const MODEL = MODEL_URL;
 
 export interface AgentProps {
   name: string;
