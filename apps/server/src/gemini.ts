@@ -6,7 +6,19 @@
  * and validates it with zod before the town sees it.
  */
 import { z } from 'zod';
-import type { Prompt } from './prompts';
+import {
+  ScriptedMind,
+  type ConverseRequest,
+  type ConverseResult,
+  type Mind,
+  type PlanRequest,
+  type PlanResult,
+  type ReactRequest,
+  type ReactResult,
+  type ReflectRequest,
+  type ReflectResult,
+} from '@agentville/core';
+import { conversePrompt, planPrompt, reactPrompt, reflectPrompt, type Prompt } from './prompts';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const API = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -15,6 +27,8 @@ const TIMEOUT_MS = 25_000;
 export interface GeminiOptions {
   apiKey: string;
   model: string;
+  /** Only for testing against a stand-in server. */
+  baseUrl?: string;
   fetch?: typeof fetch;
 }
 
@@ -69,7 +83,7 @@ async function callOnce<T>(p: Prompt<T>, opts: GeminiOptions, withSchema: boolea
   };
   let res: Response;
   try {
-    res = await doFetch(`${API}/${encodeURIComponent(opts.model)}:generateContent`, {
+    res = await doFetch(`${opts.baseUrl ?? API}/${encodeURIComponent(opts.model)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': opts.apiKey },
       body: JSON.stringify(body),
@@ -104,4 +118,70 @@ async function callOnce<T>(p: Prompt<T>, opts: GeminiOptions, withSchema: boolea
   const parsed = p.schema.safeParse(json);
   if (!parsed.success) throw new GeminiError(`The reply did not match the expected format: ${parsed.error.message.slice(0, 200)}`, 'bad_output');
   return parsed.data;
+}
+
+/**
+ * Gemini as a Mind for the always-on server (LLM_PROVIDER=gemini). One call at a time, a few seconds apart,
+ * and at most `dailyCalls` a day (UTC), so it stays inside the free tier. Anything else gets the scripted mind.
+ */
+export class GeminiMind implements Mind {
+  private scripted = new ScriptedMind();
+  private busy = false;
+  private last = 0;
+  private day = '';
+  private used = 0;
+  private pausedUntil = 0;
+
+  constructor(
+    private opts: GeminiOptions & { dailyCalls: number; minGapMs?: number },
+    private onStatus: (note: string | null) => void = () => {},
+  ) {}
+
+  get usedToday() {
+    return this.used;
+  }
+
+  converse(req: ConverseRequest): Promise<ConverseResult> {
+    return this.ask(conversePrompt(req), true, () => this.scripted.converse(req));
+  }
+  planDay(req: PlanRequest): Promise<PlanResult> {
+    return this.ask(planPrompt(req), false, () => this.scripted.planDay(req));
+  }
+  reflect(req: ReflectRequest): Promise<ReflectResult> {
+    return this.ask(reflectPrompt(req), false, () => this.scripted.reflect(req));
+  }
+  react(req: ReactRequest): Promise<ReactResult> {
+    return this.ask(reactPrompt(req), true, () => this.scripted.react(req));
+  }
+
+  private async ask<T>(p: Prompt<T>, important: boolean, fallback: () => Promise<T>): Promise<T> {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== this.day) {
+      this.day = today;
+      this.used = 0;
+    }
+    const now = Date.now();
+    const share = this.used / Math.max(1, this.opts.dailyCalls);
+    if (this.busy || now < this.pausedUntil || now - this.last < (this.opts.minGapMs ?? 5000) || share >= 1 || (!important && share > 0.6)) return fallback();
+    this.busy = true;
+    this.last = now;
+    this.used++;
+    try {
+      const r = await askGemini(p, this.opts);
+      this.onStatus(null);
+      return r;
+    } catch (err) {
+      if (err instanceof GeminiError && err.kind === 'rate_limit') {
+        this.pausedUntil = Date.now() + 60_000;
+        this.onStatus('Gemini asked the town to slow down. Conversations are scripted for a minute.');
+      } else if (err instanceof GeminiError && err.kind === 'auth') {
+        this.pausedUntil = Infinity;
+        this.onStatus('The Gemini API key was rejected. Check GEMINI_API_KEY.');
+      }
+      console.warn(`[mind] ${p.purpose} failed, using the scripted mind: ${err instanceof Error ? err.message : err}`);
+      return fallback();
+    } finally {
+      this.busy = false;
+    }
+  }
 }

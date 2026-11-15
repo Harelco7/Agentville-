@@ -9,6 +9,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { BASE_SPEED, Engine, generateWorld, ScriptedMind, type ClientMessage, type ServerMessage, type TownStatus } from '@agentville/core';
 import { Budget } from './budget';
 import { ClaudeMind, type MindStatus } from './claudeMind';
+import { GeminiMind } from './gemini';
 import { config } from './config';
 import { openStore, today } from './store';
 
@@ -26,7 +27,9 @@ async function main() {
   let mindStatus: MindStatus =
     config.mind === 'claude'
       ? { mind: 'claude', note: null }
-      : { mind: 'scripted', note: 'No Claude API key is set, so conversations use built-in scripts.' };
+      : config.mind === 'gemini'
+        ? { mind: 'gemini', note: null }
+        : { mind: 'scripted', note: 'No Claude or Gemini API key is set, so conversations use built-in scripts.' };
 
   const clients = new Set<WebSocket>();
   const inspecting = new Map<WebSocket, string | null>();
@@ -39,17 +42,26 @@ async function main() {
     mind: mindStatus.mind,
     note: mindStatus.note,
     budget: config.mind === 'claude' ? { weeklyUsd: budget.weeklyUsd, dailyCapUsd: budget.dailyCapUsd, spentTodayUsd: budget.spentTodayUsd } : null,
+    calls: gemini ? { usedToday: gemini.usedToday, dailyLimit: config.dailyCalls } : null,
     speed: config.speed,
   });
 
+  const gemini =
+    config.mind === 'gemini'
+      ? new GeminiMind({ apiKey: config.geminiKey, model: config.geminiModel, dailyCalls: config.dailyCalls }, (note) => {
+          mindStatus = { mind: 'gemini', note };
+          broadcast({ type: 'status', status: status() });
+        })
+      : null;
   const mind =
-    config.mind === 'claude'
+    gemini ??
+    (config.mind === 'claude'
       ? new ClaudeMind({ routineModel: config.routineModel, deepModel: config.deepModel, maxConcurrent: config.maxConcurrentCalls }, budget, store, (s) => {
           mindStatus = s;
           console.log(`[mind] ${s.mind}${s.note ? `: ${s.note}` : ''}`);
           broadcast({ type: 'status', status: status() });
         })
-      : new ScriptedMind();
+      : new ScriptedMind());
 
   const engine = new Engine(world, {
     mind,

@@ -27,6 +27,7 @@ export interface CloudEnv {
   geminiModel: string;
   dailyCalls: number;
   seed: number;
+  geminiBaseUrl?: string;
   fetch?: typeof fetch;
 }
 
@@ -38,6 +39,7 @@ export function envFromProcess(): CloudEnv {
     geminiModel: e.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
     dailyCalls: Number(e.LLM_DAILY_CALLS || 400),
     seed: Number(e.WORLD_SEED || 20261115),
+    geminiBaseUrl: e.GEMINI_API_BASE || undefined,
   };
 }
 
@@ -226,7 +228,7 @@ async function mind(req: IncomingMessage, res: ServerResponse, env: CloudEnv) {
   }
   const usedToday = counted[0].calls;
   try {
-    const result = await askGemini(promptFor(kind, body.req as never), { apiKey: env.geminiKey, model: env.geminiModel, fetch: env.fetch });
+    const result = await askGemini(promptFor(kind, body.req as never), { apiKey: env.geminiKey, model: env.geminiModel, baseUrl: env.geminiBaseUrl, fetch: env.fetch });
     return reply({ ok: true, result, usedToday, dailyLimit: env.dailyCalls });
   } catch (err) {
     const reason = err instanceof GeminiError ? err.kind : 'unavailable';

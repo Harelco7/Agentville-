@@ -27,7 +27,7 @@ import type { Store } from './store';
 const QUEUE_LIMIT = 40;
 
 export interface MindStatus {
-  mind: 'claude' | 'scripted';
+  mind: 'claude' | 'gemini' | 'scripted';
   note: string | null;
 }
 

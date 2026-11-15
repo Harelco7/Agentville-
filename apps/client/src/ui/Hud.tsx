@@ -31,8 +31,9 @@ function StatusChip() {
   }
   const b = status?.budget;
   return (
-    <span className={`chip ${status?.mind === 'claude' ? 'live' : 'demo'}`} title={status?.note ?? ''}>
-      Live · {status?.mind === 'claude' ? 'Claude' : 'scripted'}
+    <span className={`chip ${status?.mind !== 'scripted' ? 'live' : 'demo'}`} title={status?.note ?? ''}>
+      Live · {status?.mind === 'claude' ? 'Claude' : status?.mind === 'gemini' ? 'Gemini' : 'scripted'}
+      {status?.calls && ` · ${status.calls.usedToday} of ${status.calls.dailyLimit} calls today`}
       {b && ` · $${b.spentTodayUsd.toFixed(2)} of $${b.dailyCapUsd.toFixed(2)} today`}
     </span>
   );

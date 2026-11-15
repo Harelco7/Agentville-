@@ -11,6 +11,11 @@
     "build": "pnpm --filter @agentville/client build",
     "start": "pnpm --filter @agentville/server start",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "build:vercel": "node scripts/build-vercel.mjs",
+    "serve:vercel": "node scripts/serve-vercel.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }
