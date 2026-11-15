@@ -1,9 +1,11 @@
 /**
- * Connects the view to the town. It first tries the live server (WebSocket at /ws). If there is none,
+ * Connects the view to the town. It first tries the free cloud setup (/api/town on Vercel), then the live
+ * server (WebSocket at /ws). If there is neither,
  * for example in the hosted preview, it runs the same simulation right here in the browser with
  * scripted conversations, so the town is always alive.
  */
 import { BASE_SPEED, Engine, generateWorld, ScriptedMind, type ClientMessage, type ServerMessage } from '@agentville/core';
+import { tryCloud } from './cloud';
 import { pushFeed, useTown } from './store';
 
 const DEMO_SEED = 20261115;
@@ -17,9 +19,11 @@ export function startTown() {
   started = true;
   const forceDemo = import.meta.env.MODE === 'artifact' || new URLSearchParams(location.search).has('demo');
   if (forceDemo) return startDemo();
-  tryLive().then((ok) => {
-    if (!ok) startDemo();
-  });
+  void (async () => {
+    if (await tryCloud()) return;
+    if (await tryLive()) return;
+    startDemo();
+  })();
 }
 
 function tryLive(): Promise<boolean> {

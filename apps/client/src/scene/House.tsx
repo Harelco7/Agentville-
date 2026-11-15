@@ -162,7 +162,7 @@ function Interior({ accent }: { accent: string }) {
 
 export interface HouseProps {
   id: string;
-  kind: Exclude<BuildingKind, 'park'>;
+  kind: Exclude<BuildingKind, 'park' | 'tech'>;
   name: string;
   position: [number, number, number];
   rotationY: number;

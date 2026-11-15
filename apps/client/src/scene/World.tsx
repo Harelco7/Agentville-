@@ -2,11 +2,12 @@ import { useEffect, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
-import { buildingRotation, LOT_XS, LOT_Z, WALK_Z, type Building } from '@agentville/core';
+import { buildingRotation, LOT_XS, LOT_Z, TECH_LOT, WALK_Z, type Building } from '@agentville/core';
 import { MaterialsContext, useMaterials } from './materials';
 import { Lighting } from './Lighting';
 import { Ground, Hedge, StreetLight, Tree } from './Street';
 import { House } from './House';
+import { TechOffice } from './TechOffice';
 import { Park } from './Interiors';
 import { People, TownClock } from './Agents';
 import { CutawayLight } from './CutawayLight';
@@ -22,7 +23,14 @@ function useTrees(): { p: [number, number, number]; s: number; seed: number }[] 
       for (const x of [-60, ...LOT_XS.map((v) => v + 10)]) {
         trees.push({ p: [x + ((seed * 7) % 5) - 2, 0, side * (LOT_Z + 6 + ((seed * 3) % 4))], s: 0.95 + ((seed * 13) % 5) / 10, seed: seed++ });
       }
-      for (const x of [-70, 70]) trees.push({ p: [x, 0, side * (LOT_Z - 2)], s: 1.2, seed: seed++ });
+      for (const x of [-70, 70]) {
+        // The east end of the north side is Linden Labs' lot.
+        if (x === TECH_LOT.x && side === TECH_LOT.side) {
+          seed++;
+          continue;
+        }
+        trees.push({ p: [x, 0, side * (LOT_Z - 2)], s: 1.2, seed: seed++ });
+      }
     }
     return trees;
   }, []);
@@ -40,11 +48,20 @@ function Lot({ b }: { b: Building }) {
       </group>
     );
   }
+  if (b.kind === 'tech') {
+    return (
+      <group>
+        <TechOffice id={b.id} name={b.name} position={position} rotationY={rotationY} accent={b.accent} />
+        <Hedge position={[b.x - 4.3, 0, b.side * (LOT_Z - 7.4)]} length={6.2} />
+        <Hedge position={[b.x + 4.3, 0, b.side * (LOT_Z - 7.4)]} length={6.2} />
+      </group>
+    );
+  }
   // Front hedges with a gap for the path. Local z of the hedge line is 7.4 from the lot centre.
   const hedgeZ = b.side * (LOT_Z - 7.4);
   return (
     <group>
-      <House id={b.id} kind={b.kind} name={b.name} position={position} rotationY={rotationY} walls={b.walls} roof={b.roof} accent={b.accent} />
+      <House id={b.id} kind={b.kind as Exclude<Building['kind'], 'park' | 'tech'>} name={b.name} position={position} rotationY={rotationY} walls={b.walls} roof={b.roof} accent={b.accent} />
       <Hedge position={[b.x - 4.1, 0, hedgeZ]} length={6.6} />
       <Hedge position={[b.x + 4.1, 0, hedgeZ]} length={6.6} />
     </group>
@@ -55,9 +72,10 @@ function Lot({ b }: { b: Building }) {
 function DevHooks() {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls);
+  const scene = useThree((s) => s.scene);
   useEffect(() => {
-    (window as unknown as { __cam: unknown }).__cam = { camera, controls };
-  }, [camera, controls]);
+    (window as unknown as { __cam: unknown }).__cam = { camera, controls, scene };
+  }, [camera, controls, scene]);
   return null;
 }
 

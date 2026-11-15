@@ -1,16 +1,34 @@
-import { clockText, dayOf, DAYS_PER_YEAR, weekdayOf, yearOf } from '@agentville/core';
+import { BASE_SPEED, clockText, dayOf, DAYS_PER_YEAR, weekdayOf, yearOf } from '@agentville/core';
 import { useView } from '../store';
 import { useTown } from '../town/store';
 import { AgentPanel } from './AgentPanel';
+import { CameraPad } from './CameraPad';
 import { Feed } from './Feed';
 
 const SPEEDS = [1, 10, 60];
+
+/** Real time away, said as town time: "3 days" or "5 hours". */
+function awayText(seconds: number): string {
+  const simMinutes = seconds * BASE_SPEED;
+  if (simMinutes >= 1440 * 1.5) return `${Math.round(simMinutes / 1440)} days`;
+  return `${Math.max(1, Math.round(simMinutes / 60))} hours`;
+}
 
 function StatusChip() {
   const mode = useTown((s) => s.mode);
   const status = useTown((s) => s.status);
   if (mode === 'connecting') return <span className="chip">Connecting…</span>;
   if (mode === 'demo') return <span className="chip demo">Demo in your browser</span>;
+  if (mode === 'cloud' || mode === 'watch') {
+    const c = status?.calls;
+    const gemini = status?.mind === 'gemini';
+    return (
+      <span className={`chip ${gemini ? 'live' : 'demo'}`} title={status?.note ?? ''}>
+        {mode === 'watch' ? 'Watching live' : 'Live'} · {gemini ? 'Gemini' : 'scripted'}
+        {c && ` · ${c.usedToday} of ${c.dailyLimit} calls today`}
+      </span>
+    );
+  }
   const b = status?.budget;
   return (
     <span className={`chip ${status?.mind === 'claude' ? 'live' : 'demo'}`} title={status?.note ?? ''}>
@@ -27,6 +45,7 @@ export function Hud() {
   const demoSpeed = useTown((s) => s.demoSpeed);
   const setDemoSpeed = useTown((s) => s.setDemoSpeed);
   const note = useTown((s) => s.status?.note ?? null);
+  const catchUp = useTown((s) => s.catchUp);
   const cutaway = useView((s) => s.cutaway);
   const clearCutaway = useView((s) => s.clearCutaway);
   const cutName = useTown((s) => s.buildings.find((b) => b.id === cutaway)?.name);
@@ -55,7 +74,12 @@ export function Hud() {
             ))}
           </div>
         )}
-        {note && mode === 'live' && <span className="note">{note}</span>}
+        {note && mode !== 'demo' && mode !== 'connecting' && !catchUp && <span className="note">{note}</span>}
+        {catchUp && (
+          <span className="note" role="status">
+            Catching up on {awayText(catchUp.awaySeconds)} that passed while nobody watched… {Math.round(catchUp.done * 100)}%
+          </span>
+        )}
       </header>
 
       {cutaway && (
@@ -67,9 +91,10 @@ export function Hud() {
         </div>
       )}
 
+      <CameraPad />
       <Feed />
       <AgentPanel />
-      <div className="hint">Drag or WASD to move · Right-drag or Q/E to turn · Scroll to zoom · Double-click to fly there · Click a building to look inside · Click a person to follow them</div>
+      <div className="hint">Drag or WASD to move · Right-drag, Q/E or the buttons to turn all the way around · Scroll to zoom · Double-click to fly there · Click a building to look inside · Click a person to follow them</div>
     </>
   );
 }

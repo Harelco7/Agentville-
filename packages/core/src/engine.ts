@@ -10,6 +10,7 @@ import { Rng } from './rng';
 import type { AgentDetail } from './protocol';
 import type { ActionKind, AgentState, AgentView, Building, Conversation, FeedEvent, FeedKind, Memory, MemoryKind, NeedKey, TickView, WorldState } from './types';
 import { personalityText } from './worldgen';
+import { looksOf } from './looks';
 
 const WALK_SPEED = 1.35; // metres per real second at 1x
 const LINE_SECONDS = 3.4; // real seconds each spoken line stays up
@@ -204,7 +205,7 @@ export class Engine {
 
     if (work && !weekend && h >= 8.5 && h < 16.5) {
       const end = h < 12.5 ? 12.5 : 17;
-      const group: AnchorGroup = work.kind === 'park' ? 'bench' : work.kind === 'office' ? 'back' : 'counter';
+      const group: AnchorGroup = work.kind === 'park' ? 'bench' : work.kind === 'office' || work.kind === 'tech' ? 'back' : 'counter';
       add({ kind: 'work', building: work, group, duration: (end - h) * 60, label: `working at ${work.name}` }, 1.0 + 0.4 * tr.conscientiousness);
     } else if (!work && a.occupation.includes('from home') && !weekend && h >= 9 && h < 16) {
       add({ kind: 'work', building: home, group: 'dining', duration: 120, label: 'working from home' }, 0.75 + 0.4 * tr.conscientiousness);
@@ -586,6 +587,7 @@ export class Engine {
         activity: this.activityText(a),
         speaking: a.speaking,
         needs: a.needs,
+        looks: looksOf(a),
       })),
     };
   }
@@ -651,7 +653,7 @@ function groupOf(kind: ActionKind, b: Building): AnchorGroup {
     if (kind === 'eat_home' || kind === 'work') return 'dining';
     return 'sofa';
   }
-  if (kind === 'work') return b.kind === 'office' ? 'back' : 'counter';
+  if (kind === 'work') return b.kind === 'office' || b.kind === 'tech' ? 'back' : 'counter';
   return 'front';
 }
 

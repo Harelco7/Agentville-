@@ -9,7 +9,7 @@
 import { useEffect, useRef, type ElementRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { MapControls } from '@react-three/drei';
-import { Plane, Raycaster, Vector2, Vector3 } from 'three';
+import { Plane, Raycaster, Spherical, Vector2, Vector3 } from 'three';
 type MapControlsImpl = ElementRef<typeof MapControls>;
 import { useTown } from '../town/store';
 
@@ -19,13 +19,33 @@ const MOVE_SPEED = 22; // metres per second at a normal zoom
 const TURN_SPEED = 1.6; // radians per second
 const ZOOM_SPEED = 1.6; // factor per second
 
-const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'KeyR', 'KeyF', 'ShiftLeft', 'ShiftRight'];
+const TILT_SPEED = 0.9; // radians per second
+const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyT', 'KeyG', 'ShiftLeft', 'ShiftRight'];
+const HOME = { target: new Vector3(0, 1, 0), offset: new Vector3(46, 33, 44) };
+
+/** Keys and on-screen buttons held down right now (both steer the camera the same way). */
+const held = new Set<string>();
+/** Radians left to turn for a full 360° tour, and a pending "back to the start" request. */
+let spinLeft = 0;
+let goHome = false;
+
+/** On-screen buttons: hold one to move, turn, tilt or zoom (it uses the same codes as the keyboard). */
+export function holdCamera(code: string, on: boolean) {
+  if (on) held.add(code);
+  else held.delete(code);
+}
+/** Turn slowly all the way around the current spot. Pressing it again stops. */
+export function spinCamera() {
+  spinLeft = spinLeft > 0 ? 0 : Math.PI * 2;
+}
+export function resetCamera() {
+  goHome = true;
+}
 
 export function CameraRig() {
   const controls = useRef<MapControlsImpl>(null);
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
-  const pressed = useRef(new Set<string>());
   const flyTo = useRef<Vector3 | null>(null);
   const following = useRef<string | null>(null);
 
@@ -34,11 +54,11 @@ export function CameraRig() {
     const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /input|textarea|select/i.test(e.target.tagName);
     const down = (e: KeyboardEvent) => {
       if (typing(e) || !KEYS.includes(e.code)) return;
-      pressed.current.add(e.code);
+      held.add(e.code);
       if (e.code.startsWith('Arrow')) e.preventDefault();
     };
-    const up = (e: KeyboardEvent) => pressed.current.delete(e.code);
-    const blur = () => pressed.current.clear();
+    const up = (e: KeyboardEvent) => held.delete(e.code);
+    const blur = () => held.clear();
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
@@ -101,7 +121,7 @@ export function CameraRig() {
     const c = controls.current;
     if (!c) return;
     const dt = Math.min(rawDt, 0.1);
-    const keys = pressed.current;
+    const keys = held;
     const fast = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.5 : 1;
     const offset = camera.position.clone().sub(c.target);
     const distance = offset.length();
@@ -114,7 +134,7 @@ export function CameraRig() {
     if (keys.has('KeyS') || keys.has('ArrowDown')) move.sub(forward);
     if (keys.has('KeyD') || keys.has('ArrowRight')) move.add(right);
     if (keys.has('KeyA') || keys.has('ArrowLeft')) move.sub(right);
-    const manual = move.lengthSq() > 0 || keys.has('KeyQ') || keys.has('KeyE') || keys.has('KeyR') || keys.has('KeyF');
+    const manual = move.lengthSq() > 0 || ['KeyQ', 'KeyE', 'KeyR', 'KeyF', 'KeyT', 'KeyG'].some((k) => keys.has(k));
     if (manual) {
       following.current = null;
       flyTo.current = null;
@@ -126,9 +146,32 @@ export function CameraRig() {
     }
 
     // Turn around the focus point, and zoom.
-    const turn = (keys.has('KeyQ') ? 1 : 0) - (keys.has('KeyE') ? 1 : 0);
+    if (goHome) {
+      goHome = false;
+      spinLeft = 0;
+      following.current = null;
+      flyTo.current = null;
+      c.target.copy(HOME.target);
+      camera.position.copy(HOME.target).add(HOME.offset);
+      offset.copy(HOME.offset);
+    }
+    let turn = ((keys.has('KeyQ') ? 1 : 0) - (keys.has('KeyE') ? 1 : 0)) * TURN_SPEED * fast * dt;
+    if (manual) spinLeft = 0;
+    if (spinLeft > 0) {
+      const a = Math.min(spinLeft, 0.7 * dt);
+      spinLeft -= a;
+      turn += a;
+    }
     if (turn) {
-      offset.applyAxisAngle(new Vector3(0, 1, 0), turn * TURN_SPEED * fast * dt);
+      offset.applyAxisAngle(new Vector3(0, 1, 0), turn);
+      camera.position.copy(c.target).add(offset);
+    }
+    // Tilt between looking straight down and looking along the street.
+    const tilt = (keys.has('KeyG') ? 1 : 0) - (keys.has('KeyT') ? 1 : 0);
+    if (tilt) {
+      const sph = new Spherical().setFromVector3(offset);
+      sph.phi = Math.min(c.maxPolarAngle, Math.max(0.15, sph.phi + tilt * TILT_SPEED * dt));
+      offset.setFromSpherical(sph);
       camera.position.copy(c.target).add(offset);
     }
     const zoom = (keys.has('KeyF') ? 1 : 0) - (keys.has('KeyR') ? 1 : 0);

@@ -1,5 +1,5 @@
 /** Builds a new town from a seed. The same seed always gives the same town and the same people. */
-import { ANCHORS, LOT_XS, toWorld, toWorldFacing } from './layout';
+import { ANCHORS, LOT_XS, TECH_LOT, toWorld, toWorldFacing } from './layout';
 import { Rng } from './rng';
 import type { Building, BuildingKind, Traits, WorldState } from './types';
 
@@ -21,6 +21,7 @@ const VENUE_NAMES: Record<Exclude<BuildingKind, 'home'>, string> = {
   cafe: 'Corner Café',
   shop: 'Maple Grocery',
   office: 'Town Works Office',
+  tech: 'Linden Labs',
   park: 'Linden Park',
 };
 
@@ -29,14 +30,15 @@ const JOBS: Record<string, { title: string; work: BuildingKind | null }> = {
   cafeOwner: { title: 'café owner', work: 'cafe' },
   grocer: { title: 'grocer', work: 'shop' },
   clerk: { title: 'town clerk', work: 'office' },
-  engineer: { title: 'civil engineer', work: 'office' },
+  developer: { title: 'software developer', work: 'tech' },
+  designer: { title: 'product designer', work: 'tech' },
   accountant: { title: 'accountant', work: 'office' },
   gardener: { title: 'park gardener', work: 'park' },
   painter: { title: 'painter who works from home', work: null },
   writer: { title: 'novelist who works from home', work: null },
   retired: { title: 'retired teacher', work: null },
 };
-const JOB_ORDER = ['barista', 'grocer', 'clerk', 'engineer', 'gardener', 'cafeOwner', 'accountant', 'painter', 'retired', 'writer'];
+const JOB_ORDER = ['barista', 'grocer', 'clerk', 'developer', 'gardener', 'cafeOwner', 'accountant', 'designer', 'retired', 'writer'];
 
 function describe(t: Traits): string[] {
   const words: string[] = [];
@@ -89,6 +91,8 @@ export function generateWorld(seed: number): WorldState {
       ...look,
     });
   });
+  // Linden Labs, a small hi-tech company, sits on its own lot at the east end with room to hire newcomers.
+  world.buildings.push({ id: 'tech', kind: 'tech', name: VENUE_NAMES.tech, x: TECH_LOT.x, side: TECH_LOT.side, walls: 'plaster', roof: 'slate', accent: '#2f6fd0' });
 
   // Households: 10 people in 6 of the homes, leaving 2 empty for newcomers.
   const homes = world.buildings.filter((b) => b.kind === 'home');

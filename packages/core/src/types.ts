@@ -5,7 +5,7 @@ export interface Vec2 {
   z: number;
 }
 
-export type BuildingKind = 'home' | 'cafe' | 'shop' | 'office' | 'park';
+export type BuildingKind = 'home' | 'cafe' | 'shop' | 'office' | 'tech' | 'park';
 
 export interface Building {
   id: string;
@@ -165,6 +165,20 @@ export interface AgentView {
   activity: string;
   speaking: string | null;
   needs: Needs;
+  /** Skin, hair and clothes. */
+  looks: Looks;
+}
+
+/** How a person looks. Derived from who they are, so it never changes between saves. */
+export interface Looks {
+  skin: string;
+  hair: string;
+  hairStyle: 'short' | 'crop' | 'long' | 'bun' | 'curly' | 'bald';
+  top: string;
+  sleeves: 'short' | 'long';
+  bottom: string;
+  legs: 'trousers' | 'shorts' | 'skirt';
+  shoes: string;
 }
 
 export interface TickView {

@@ -22,11 +22,13 @@ export interface AgentDetail {
 }
 
 export interface TownStatus {
-  /** Who writes the conversations: Claude, or the built-in scripts. */
-  mind: 'claude' | 'scripted';
+  /** Who writes the conversations: Claude, Gemini, or the built-in scripts. */
+  mind: 'claude' | 'gemini' | 'scripted';
   /** Why the scripted mind is in use, if it is. */
   note: string | null;
   budget: { weeklyUsd: number; dailyCapUsd: number; spentTodayUsd: number } | null;
+  /** Free setups count calls instead of dollars. */
+  calls?: { usedToday: number; dailyLimit: number } | null;
   /** Speed multiplier relative to 1x. */
   speed: number;
 }

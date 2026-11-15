@@ -8,6 +8,8 @@ export const WALK_Z = 4.6;
 export const LOT_Z = 14;
 export const STREET_LENGTH = 160;
 export const LOT_XS = [-50, -30, -10, 10, 30, 50] as const;
+/** The newer business lot at the east end of the street, where the hi-tech company is. */
+export const TECH_LOT = { x: 70, side: -1 as const };
 export const HOUSE_W = 10;
 export const HOUSE_D = 8;
 
@@ -45,6 +47,11 @@ export const ANCHORS: Record<Building['kind'], Partial<Record<AnchorGroup, Ancho
     front: [A(-2.8, 1.9, Math.PI), A(2.6, 1.9, Math.PI)],
     back: [A(-2.8, -2.2, Math.PI), A(-1.6, -2.2, Math.PI), A(2.4, -2.2, Math.PI), A(3.4, -2.2, Math.PI)],
     counter: [A(-0.2, 2.6, Math.PI)],
+  },
+  tech: {
+    front: [A(2.4, 2.4, -Math.PI / 2), A(3.6, 2.4, Math.PI / 2), A(2.4, 3.3, -Math.PI / 2), A(3.6, 3.3, Math.PI / 2)],
+    back: [A(-3.4, -2.0, Math.PI), A(-2.2, -2.0, Math.PI), A(-3.4, -3.1, 0), A(-2.2, -3.1, 0), A(2.2, -2.0, Math.PI), A(3.4, -2.0, Math.PI), A(2.2, -3.1, 0), A(3.4, -3.1, 0)],
+    counter: [A(-2.6, 2.2, Math.PI)],
   },
   park: {
     bench: [A(-4.2, 2.4, 0), A(-3.2, 2.4, 0), A(3.2, 2.4, 0), A(4.2, 2.4, 0), A(-1.2, -3.2, Math.PI), A(1.2, -3.2, Math.PI), A(0, 0.9, Math.PI)],

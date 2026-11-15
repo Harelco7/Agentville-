@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, useAnimations } from '@react-three/drei';
-import { AnimationAction, Group, Mesh, MeshStandardMaterial } from 'three';
+import { AnimationAction, Group } from 'three';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { BASE_SPEED, hourOf, ROAD_HALF, type AgentView } from '@agentville/core';
+import { BASE_SPEED, hourOf, ROAD_HALF, type AgentView, type Looks } from '@agentville/core';
+import { dress } from './character';
 import { useModel } from '../assets';
 import { useTown } from '../town/store';
 import { useView } from '../store';
@@ -30,7 +31,7 @@ function Person({ id }: { id: string }) {
   const { scene, animations } = useModel();
   const group = useRef<Group>(null);
   const walking = useRef<boolean | null>(null);
-  const color = useTown((s) => s.tick?.agents.find((a) => a.id === id)?.color ?? '#888');
+  const looksKey = useTown((s) => JSON.stringify(s.tick?.agents.find((a) => a.id === id)?.looks ?? null));
   const name = useTown((s) => s.tick?.agents.find((a) => a.id === id)?.name ?? '');
   const activity = useTown((s) => s.tick?.agents.find((a) => a.id === id)?.activity ?? '');
   const speaking = useTown((s) => s.tick?.agents.find((a) => a.id === id)?.speaking ?? null);
@@ -39,19 +40,10 @@ function Person({ id }: { id: string }) {
 
   const model = useMemo(() => {
     const c = clone(scene);
-    c.traverse((o) => {
-      const mesh = o as Mesh;
-      if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      const mat = (mesh.material as MeshStandardMaterial).clone();
-      if (mat.name.includes('Body')) mat.color.set(color);
-      else mat.color.set('#2e2a27');
-      mat.roughness = 0.75;
-      mat.metalness = 0;
-      mesh.material = mat;
-    });
+    const looks = JSON.parse(looksKey) as Looks | null;
+    if (looks) dress(c, looks);
     return c;
-  }, [scene, color]);
+  }, [scene, looksKey]);
 
   const { actions } = useAnimations(animations, group);
 
@@ -72,7 +64,8 @@ function Person({ id }: { id: string }) {
     const dz = a.z - g.position.z;
     if (Math.hypot(dx, dz) > 12) g.position.set(a.x, groundY(a), a.z);
     else {
-      const k = Math.min(1, dt * 7);
+      // Watchers get a picture once a second, so glide more slowly between them.
+      const k = Math.min(1, dt * (useTown.getState().mode === 'watch' ? 2.2 : 7));
       g.position.x += dx * k;
       g.position.z += dz * k;
       g.position.y += (groundY(a) - g.position.y) * k;

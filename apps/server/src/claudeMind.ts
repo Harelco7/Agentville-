@@ -7,14 +7,12 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { z } from 'zod';
+import type { z } from 'zod';
 import {
-  MAX_CONVERSATION_LINES,
   ScriptedMind,
   type ConverseRequest,
   type ConverseResult,
   type Mind,
-  type PersonBrief,
   type PlanRequest,
   type PlanResult,
   type ReactRequest,
@@ -23,73 +21,10 @@ import {
   type ReflectResult,
 } from '@agentville/core';
 import { Budget, BudgetExceededError, costOf } from './budget';
+import { conversePrompt, planPrompt, reactPrompt, reflectPrompt } from './prompts';
 import type { Store } from './store';
 
 const QUEUE_LIMIT = 40;
-
-const ConversationSchema = z.object({
-  lines: z.array(z.object({ speaker: z.enum(['a', 'b']), text: z.string() })),
-  topic: z.string(),
-  tone: z.enum(['warm', 'friendly', 'neutral', 'tense', 'heated']),
-  summary: z.string(),
-  aAffinityChange: z.number().int(),
-  bAffinityChange: z.number().int(),
-  aMemory: z.string(),
-  bMemory: z.string(),
-  gossip: z.string().nullable(),
-  importance: z.number().int(),
-});
-const PlanSchema = z.object({ plan: z.string(), wantsToSee: z.string().nullable() });
-const ReflectSchema = z.object({ beliefs: z.array(z.string()) });
-const ReactSchema = z.object({ line: z.string(), memory: z.string() });
-
-const TOWN = `Agentville is a small, peaceful simulated town on Linden Street, with homes, the Corner Café, Maple Grocery, the Town Works Office and Linden Park. Its residents are ordinary adults with jobs, habits, moods and relationships. Everything is written in plain, modern English. Content stays family-friendly: no violence, crime, drugs or romance beyond friendship. Never invent events that would change the town (deaths, moving away, new buildings); small personal news is fine.`;
-
-const CONVERSE_SYSTEM = `${TOWN}
-
-You write one conversation between two residents who have just run into each other. Make it feel real:
-- Stay true to each person's personality, plan for the day, beliefs, memories and how they feel about each other.
-- Not every chat is pleasant or important. People can be warm, awkward, distracted, funny, annoyed or curious.
-- They may bring up things they remember, including news they heard about other residents. This is how gossip spreads.
-- Each line is one or two short spoken sentences. The conversation has between 4 and ${MAX_CONVERSATION_LINES} lines, then ends naturally. No repeated goodbyes, no loops.
-- Avoid the listed recent topics unless something new happened.
-
-Then report what came of it:
-- topic: a few words, e.g. "the café's new menu".
-- tone: warm, friendly, neutral, tense or heated.
-- summary: one sentence for the town news feed, naming both people.
-- aAffinityChange and bAffinityChange: how much each person's feeling toward the other changed, from -10 to 10. Most chats move it by 0 to 3.
-- aMemory and bMemory: one sentence each that the person will remember.
-- gossip: a short piece of news a bystander might repeat, written as a statement, or null if there is none.
-- importance: 1 for small talk up to 10 for something life changing.`;
-
-const PLAN_SYSTEM = `${TOWN}
-
-You decide what one resident intends to do today. Base it on their personality, job, beliefs and recent memories. Answer with:
-- plan: one sentence in the first person, at most 25 words.
-- wantsToSee: the first name of one resident from the list they would like to see today, or null.`;
-
-const REFLECT_SYSTEM = `${TOWN}
-
-At the end of the day, a resident thinks back on recent memories. Write up to 3 lasting beliefs or lessons they take away, in the first person, at most 15 words each. Only include beliefs that the memories support.`;
-
-const REACT_SYSTEM = `${TOWN}
-
-A resident has just noticed something nearby. Write:
-- line: what they say out loud, one short sentence (at most 15 words), true to their personality and feelings.
-- memory: one sentence they will remember about it.`;
-
-function person(p: PersonBrief, label: string): string {
-  return [
-    `${label}: ${p.name}, ${p.age}, ${p.occupation}. ${p.bio}`,
-    `Personality: ${p.personality}.`,
-    p.plan ? `Plan for today: ${p.plan}` : '',
-    p.beliefs.length ? `Beliefs: ${p.beliefs.join(' ')}` : '',
-    p.memories.length ? `Memories (oldest first):\n${p.memories.map((m) => `- ${m}`).join('\n')}` : 'Memories: none yet.',
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
 
 export interface MindStatus {
   mind: 'claude' | 'scripted';
@@ -125,42 +60,19 @@ export class ClaudeMind implements Mind {
   async converse(req: ConverseRequest): Promise<ConverseResult> {
     // Close friends and rivals get the stronger model: those conversations matter more.
     const strong = /close friend|dislike/.test(req.aAboutB + req.bAboutA);
-    const prompt = [
-      `Time: ${req.time}. Place: ${req.place}.`,
-      person(req.a, 'Person A'),
-      req.aAboutB,
-      person(req.b, 'Person B'),
-      req.bAboutA,
-      req.recentTopics.length ? `Recent topics between them: ${req.recentTopics.join('; ')}.` : '',
-      `Write their conversation (speaker "a" is ${req.a.name}, "b" is ${req.b.name}), at most ${req.maxLines} lines.`,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    return this.run(
-      { purpose: 'conversation', model: strong ? this.opts.deepModel : this.opts.routineModel, system: CONVERSE_SYSTEM, prompt, schema: ConversationSchema, maxTokens: 6000 },
-      () => this.scripted.converse(req),
-    );
+    return this.run({ ...conversePrompt(req), model: strong ? this.opts.deepModel : this.opts.routineModel }, () => this.scripted.converse(req));
   }
 
   planDay(req: PlanRequest): Promise<PlanResult> {
-    const prompt = `Time: ${req.time}.\n\n${person(req.person, 'Resident')}\n\nResidents they know:\n${req.townsfolk.map((t) => `- ${t}`).join('\n')}`;
-    return this.run({ purpose: 'plan', model: this.opts.routineModel, system: PLAN_SYSTEM, prompt, schema: PlanSchema, maxTokens: 3000 }, () =>
-      this.scripted.planDay(req),
-    );
+    return this.run({ ...planPrompt(req), model: this.opts.routineModel }, () => this.scripted.planDay(req));
   }
 
   reflect(req: ReflectRequest): Promise<ReflectResult> {
-    return this.run(
-      { purpose: 'reflection', model: this.opts.deepModel, system: REFLECT_SYSTEM, prompt: person(req.person, 'Resident'), schema: ReflectSchema, maxTokens: 4000 },
-      () => this.scripted.reflect(req),
-    );
+    return this.run({ ...reflectPrompt(req), model: this.opts.deepModel }, () => this.scripted.reflect(req));
   }
 
   react(req: ReactRequest): Promise<ReactResult> {
-    const prompt = `Time: ${req.time}. Place: ${req.place}.\n\n${person(req.witness, 'Resident')}\n\n${req.feelings.join('\n')}\n\nThey just noticed: ${req.observed}.`;
-    return this.run({ purpose: 'reaction', model: this.opts.routineModel, system: REACT_SYSTEM, prompt, schema: ReactSchema, maxTokens: 2000 }, () =>
-      this.scripted.react(req),
-    );
+    return this.run({ ...reactPrompt(req), model: this.opts.routineModel }, () => this.scripted.react(req));
   }
 
   /** Make one structured call, or fall back to the scripted mind. */
