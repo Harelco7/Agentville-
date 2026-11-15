@@ -1,0 +1,12 @@
+{
+  "name": "agentville",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A persistent 3D town of autonomous AI agents.",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --filter @agentville/client dev",
+    "build": "pnpm --filter @agentville/client build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
