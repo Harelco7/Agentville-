@@ -5,7 +5,7 @@ import { DirectionalLight, Fog, HemisphereLight, Group } from 'three';
 import { sunAt } from './sun';
 import { useMats } from './materials';
 import { useView } from '../store';
-import { HDRI_URL } from '../assetUrls';
+import { useHdri } from '../assets';
 
 /** Sun, moon, sky, image-based light and fog, all driven by the hour of the day. */
 export function Lighting() {
@@ -13,6 +13,7 @@ export function Lighting() {
   const setHour = useView((s) => s.setHour);
   const scene = useThree((s) => s.scene);
   const m = useMats();
+  const hdri = useHdri();
   const sun = useRef<DirectionalLight>(null);
   const moon = useRef<DirectionalLight>(null);
   const hemi = useRef<HemisphereLight>(null);
@@ -52,7 +53,7 @@ export function Lighting() {
       <group ref={stars}>
         <Stars radius={300} depth={60} count={2500} factor={5} fade speed={0.3} />
       </group>
-      <Environment files={HDRI_URL} />
+      <Environment map={hdri} />
       <hemisphereLight ref={hemi} args={['#c7dcff', '#5a6a3c', 0.3]} />
       <directionalLight
         ref={sun}

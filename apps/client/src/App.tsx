@@ -4,11 +4,12 @@ import { Loader } from '@react-three/drei';
 import { World } from './scene/World';
 import { Hud } from './ui/Hud';
 import { useView } from './store';
+import { ErrorScreen } from './ErrorScreen';
 
 export function App() {
   const clearCutaway = useView((s) => s.clearCutaway);
   return (
-    <>
+    <ErrorScreen>
       <Canvas
         shadows="soft"
         flat
@@ -23,6 +24,6 @@ export function App() {
       </Canvas>
       <Hud />
       <Loader />
-    </>
+    </ErrorScreen>
   );
 }

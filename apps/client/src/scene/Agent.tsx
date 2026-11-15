@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, useAnimations, useGLTF } from '@react-three/drei';
+import { Html, useAnimations } from '@react-three/drei';
 import { Group, Mesh, MeshStandardMaterial } from 'three';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { MODEL_URL } from '../assetUrls';
-
-const MODEL = MODEL_URL;
+import { useModel } from '../assets';
 
 export interface AgentProps {
   name: string;
@@ -22,7 +20,7 @@ export interface AgentProps {
 
 /** A person: an animated character, a walk path and a name label. */
 export function Agent({ name, activity, color, position, walkBetween, facing = 0 }: AgentProps) {
-  const { scene, animations } = useGLTF(MODEL);
+  const { scene, animations } = useModel();
   const group = useRef<Group>(null);
   const dir = useRef(1);
 
@@ -79,5 +77,3 @@ export function Agent({ name, activity, color, position, walkBetween, facing = 0
     </group>
   );
 }
-
-useGLTF.preload(MODEL);
