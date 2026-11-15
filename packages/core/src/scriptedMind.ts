@@ -41,6 +41,20 @@ const TOPICS: Topic[] = [
     ],
   },
   {
+    key: 'getting ahead',
+    lines: (_a, _b, r) => [
+      [r.pick(['I\'m putting every spare dollar aside this month.', 'Do you ever think about starting something of your own?', 'Rent went out this morning and I felt it.']), r.pick(['Smart. Nobody is going to hand it to us.', 'All the time. I just need the money first.', 'Same. It adds up fast.'])],
+      [r.pick(['If you ever need a partner, ask me first.', 'Extra hours are the only way I see.', 'One good idea and a lot of work, that\'s the plan.']), r.pick(['I might take you up on that.', 'Just don\'t burn out.', 'Then let\'s both get to work.'])],
+    ],
+  },
+  {
+    key: 'the town\'s future',
+    lines: (_a, _b, r) => [
+      [r.pick(['Linden Labs is growing. The town could use more places like it.', 'This street needs a proper square.', 'Two houses are still empty. We should bring people in.']), r.pick(['More jobs, more customers for everyone.', 'If the town grows, we all do better.', 'Somebody has to make it happen.'])],
+      [r.pick(['Maybe that somebody is us.', 'I\'ll bring it up at the office.', 'Let\'s talk to the others about it.']), r.pick(['I\'m in.', 'Count me in, if it pays.', 'Fine, but we do the work ourselves.'])],
+    ],
+  },
+  {
     key: 'the park',
     lines: (_a, _b, r) => [
       [r.pick(['The roses in Linden Park are coming back.', 'Someone fixed the bench by the oak tree.', 'The park was quiet this morning.']), r.pick(['I saw. Whoever looks after it does a good job.', 'About time, it wobbled for months.', 'That\'s my favourite time to go.'])],
@@ -129,12 +143,15 @@ export class ScriptedMind implements Mind {
   async planDay(req: PlanRequest): Promise<PlanResult> {
     const r = new Rng({ rng: hash(`${req.time}|${req.person.name}`) });
     const friend = req.townsfolk.length && r.chance(0.6) ? first(r.pick(req.townsfolk)) : null;
-    const base = r.pick([
-      'Get through the day calmly and be home early',
-      'Get some fresh air in the park',
-      'Treat myself to something at the café',
-      'Be productive and tidy up loose ends',
-    ]);
+    const broke = /in debt|no food/.test(req.person.money);
+    const base = broke
+      ? r.pick(['Work every hour I can and spend nothing until I\'m back on my feet', 'Pick up extra work and stop eating out'])
+      : r.pick([
+          `Work hard and take one real step toward my goal: ${req.person.ambition}`,
+          'Put in a full day, save what I can, and look for an opportunity',
+          'Do good work today and make one useful connection',
+          'Get my errands done and keep my spending tight',
+        ]);
     return { plan: friend ? `${base}, and catch up with ${friend}.` : `${base}.`, wantsToSee: friend };
   }
 

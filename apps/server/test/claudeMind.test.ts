@@ -14,6 +14,8 @@ const person = (name: string): PersonBrief => ({
   plan: '',
   beliefs: [],
   memories: [],
+  ambition: 'open a bakery',
+  money: '$500 in savings',
 });
 const req: ConverseRequest = {
   time: 'Monday 09:00, day 1 of year 1',

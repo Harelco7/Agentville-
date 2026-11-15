@@ -15,6 +15,14 @@ export interface AgentDetail {
   needs: Needs;
   plan: string;
   beliefs: string[];
+  /** What they're working toward in life. */
+  ambition: string;
+  money: number;
+  earnedToday: number;
+  /** Pay per hour of work, or 0 for the retired. */
+  wage: number;
+  pension: number;
+  pantry: number;
   /** Newest first. */
   memories: { t: number; kind: string; text: string }[];
   relationships: { id: string; name: string; affinity: number; label: string; talks: number }[];

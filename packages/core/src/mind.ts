@@ -15,6 +15,10 @@ export interface PersonBrief {
   beliefs: string[];
   /** Recent and important memories, newest last, e.g. "Tuesday 09:10: Talked with Dana about the bakery." */
   memories: string[];
+  /** Their life goal, e.g. "save enough to open my own bakery on Linden Street". */
+  ambition: string;
+  /** Their money situation in words, e.g. "$1,240 in savings, earns about $150 a working day, groceries for 3 meals". */
+  money: string;
 }
 
 export interface ConverseRequest {

@@ -9,7 +9,7 @@ import { MAX_CONVERSATION_LINES, type Mind, type PersonBrief } from './mind';
 import { Rng } from './rng';
 import type { AgentDetail } from './protocol';
 import type { ActionKind, AgentState, AgentView, Building, Conversation, FeedEvent, FeedKind, Memory, MemoryKind, NeedKey, TickView, WorldState } from './types';
-import { personalityText } from './worldgen';
+import { personalityText, withEconomy } from './worldgen';
 import { looksOf } from './looks';
 
 const WALK_SPEED = 1.35; // metres per real second at 1x
@@ -18,6 +18,11 @@ const AGENT_TALK_COOLDOWN = 45; // sim minutes between conversations for one per
 const PAIR_TALK_COOLDOWN = 180; // sim minutes before the same two people talk again
 const HEARING_DISTANCE = 9; // metres
 const MAX_MEMORIES = 80;
+
+/** Prices in dollars. Nothing in Agentville is free. */
+export const PRICES = { cafeMeal: 14, coffee: 5, groceries: 48, groceryMeals: 6, dailyRent: 38 };
+/** Savings milestones that make the town news. */
+const MILESTONES = [1000, 2500, 5000, 10000, 25000, 50000, 100000];
 const MAX_FEED = 200;
 
 /** Need change per sim minute: decay while awake, and gains from activities. */
@@ -25,12 +30,14 @@ const DECAY: Record<NeedKey, number> = { hunger: -0.1, energy: -0.065, social: -
 const GAINS: Partial<Record<ActionKind, Partial<Record<NeedKey, number>>>> = {
   sleep: { energy: 0.24, hunger: 0.06 },
   eat_home: { hunger: 2.2 },
+  eat_leftovers: { hunger: 1.1, fun: -0.1 },
   eat_out: { hunger: 2.0, social: 0.25, fun: 0.25 },
   socialize: { social: 0.45, fun: 0.2 },
   relax: { fun: 0.55, energy: 0.03 },
   wash: { hygiene: 3.5 },
   shop: { fun: 0.15 },
   work: { fun: -0.01, social: 0.04 },
+  side_project: { fun: 0.1 },
 };
 
 interface Choice {
@@ -73,7 +80,7 @@ export class Engine {
     this.events = opts;
     this.rng = new Rng(world);
     for (const b of world.buildings) this.buildings.set(b.id, b);
-    for (const a of world.agents) this.agents.set(a.id, a);
+    for (const a of world.agents) this.agents.set(withEconomy(a).id, a);
     // Conversations that were waiting on the Mind when the world was saved can't resume.
     world.conversations = world.conversations.filter((c) => c.status === 'playing');
     for (const a of world.agents) {
@@ -119,8 +126,19 @@ export class Engine {
       a.needs[key] = clamp(a.needs[key] + d * simDt, 0, 100);
     }
 
-    // Mornings: make a plan for the day.
+    // Work pays by the minute; side projects pay half.
+    if (act?.started && (act.kind === 'work' || act.kind === 'side_project')) this.earn(a, ((a.wage * simDt) / 60) * (act.kind === 'side_project' ? 0.5 : 1));
+
+    // Each new day: rent and bills are due, pensions arrive.
     const today = dayOf(this.world.time);
+    if (a.lastRentDay < today) {
+      a.lastRentDay = today;
+      a.earnedToday = 0;
+      if (a.pension) this.earn(a, a.pension);
+      this.pay(a, PRICES.dailyRent);
+    }
+
+    // Mornings: make a plan for the day.
     if (a.lastPlanDay < today && hourOf(this.world.time) >= 6 && !sleeping) {
       a.lastPlanDay = today;
       this.requestPlan(a);
@@ -133,6 +151,7 @@ export class Engine {
       if (!a.path.length && act && !act.started) {
         act.started = true;
         act.until = this.world.time + act.duration;
+        this.begin(a);
         if (act.kind === 'sleep') this.maybeReflect(a);
       }
       return;
@@ -203,27 +222,43 @@ export class Engine {
       night ? 1.2 + deficit('energy') : h >= 21 ? 0.5 + deficit('energy') : deficit('energy') > 0.8 ? 0.9 : 0,
     );
 
+    // Money worries push people to work; ambition pushes them to work more.
+    const broke = a.money < 0 ? 0.7 : a.money < 150 ? 0.45 : a.money < 400 ? 0.2 : 0;
+    const push = broke + a.drive * 0.3;
     if (work && !weekend && h >= 8.5 && h < 16.5) {
       const end = h < 12.5 ? 12.5 : 17;
       const group: AnchorGroup = work.kind === 'park' ? 'bench' : work.kind === 'office' || work.kind === 'tech' ? 'back' : 'counter';
-      add({ kind: 'work', building: work, group, duration: (end - h) * 60, label: `working at ${work.name}` }, 1.0 + 0.4 * tr.conscientiousness);
-    } else if (!work && a.occupation.includes('from home') && !weekend && h >= 9 && h < 16) {
-      add({ kind: 'work', building: home, group: 'dining', duration: 120, label: 'working from home' }, 0.75 + 0.4 * tr.conscientiousness);
+      add({ kind: 'work', building: work, group, duration: (end - h) * 60, label: `working at ${work.name}` }, 1.0 + 0.4 * tr.conscientiousness + push);
+    } else if (work && !weekend && h >= 17 && h < 19.5 && (a.drive > 0.6 || broke > 0)) {
+      // Overtime: the ambitious and the broke stay late.
+      const group: AnchorGroup = work.kind === 'park' ? 'bench' : work.kind === 'office' || work.kind === 'tech' ? 'back' : 'counter';
+      add({ kind: 'work', building: work, group, duration: 75, label: `putting in extra hours at ${work.name}` }, 0.2 + push * 0.9 - deficit('energy') * 0.6);
+    } else if (!work && a.wage > 0 && !weekend && h >= 9 && h < 16) {
+      add({ kind: 'work', building: home, group: 'dining', duration: 120, label: 'working from home' }, 0.75 + 0.4 * tr.conscientiousness + push);
+    }
+    // Weekends and evenings: chip away at their life goal on the side.
+    if ((weekend && h >= 10 && h < 18) || (!weekend && h >= 19 && h < 21.5)) {
+      add({ kind: 'side_project', building: home, group: 'dining', duration: 90, label: `working toward a goal: ${a.ambition}` }, 0.1 + a.drive * 0.55 + broke * 0.3 - deficit('energy') * 0.4 - deficit('fun') * 0.3);
     }
 
     const hunger = Math.pow(deficit('hunger'), 1.4) * 1.5 + (meal ? 0.3 : 0);
-    add({ kind: 'eat_home', building: home, group: 'dining', duration: 35, label: 'having a meal at home' }, hunger * (1.1 - tr.extraversion * 0.4));
-    if (cafe && daytime) add({ kind: 'eat_out', building: cafe, group: 'front', duration: 50, label: `eating at ${cafe.name}` }, hunger * (0.6 + tr.extraversion * 0.6) + deficit('social') * 0.25);
+    if (a.pantry > 0) add({ kind: 'eat_home', building: home, group: 'dining', duration: 35, label: 'having a meal at home' }, hunger * (1.1 - tr.extraversion * 0.4));
+    else add({ kind: 'eat_leftovers', building: home, group: 'dining', duration: 20, label: 'scraping together leftovers at home' }, hunger * 0.7);
+    // Eating out costs money: people who are short on it think twice.
+    const thrift = a.money < 100 ? 0.3 : a.money < 400 ? 0.7 : 1;
+    if (cafe && daytime && a.money >= PRICES.cafeMeal) add({ kind: 'eat_out', building: cafe, group: 'front', duration: 50, label: `eating at ${cafe.name}` }, (hunger * (0.6 + tr.extraversion * 0.6) + deficit('social') * 0.25) * thrift);
 
     const wanted = this.wantsToSee.get(a.id);
     const socialPull = deficit('social') * (0.5 + 0.9 * tr.extraversion) + (wanted ? 0.15 : 0);
-    if (cafe && daytime) add({ kind: 'socialize', building: cafe, group: 'front', duration: 60, label: `meeting people at ${cafe.name}` }, socialPull);
+    if (cafe && daytime && a.money >= PRICES.coffee) add({ kind: 'socialize', building: cafe, group: 'front', duration: 60, label: `meeting people at ${cafe.name}` }, socialPull * (0.6 + 0.4 * thrift) + a.drive * 0.08);
     if (park && h >= 7 && h < 20) add({ kind: 'socialize', building: park, group: 'bench', duration: 50, label: `hanging out in ${park.name}` }, socialPull * 0.9);
 
     add({ kind: 'relax', building: home, group: 'sofa', duration: 60, label: 'relaxing at home' }, deficit('fun') * 0.8 + (h >= 19 ? 0.15 : 0));
     if (park && h >= 7 && h < 20) add({ kind: 'relax', building: park, group: 'bench', duration: 45, label: `taking a walk in ${park.name}` }, deficit('fun') * (0.55 + tr.openness * 0.5));
     add({ kind: 'wash', building: home, group: 'bed', duration: 20, label: 'freshening up at home' }, deficit('hygiene') * 1.1 + (h >= 6.5 && h < 8.5 ? 0.25 : 0));
-    if (shop && h >= 9 && h < 19) add({ kind: 'shop', building: shop, group: 'front', duration: 25, label: `buying groceries at ${shop.name}` }, 0.18 + deficit('hunger') * 0.25);
+    if (shop && h >= 9 && h < 19 && a.money >= PRICES.groceries && a.pantry < 4) {
+      add({ kind: 'shop', building: shop, group: 'front', duration: 25, label: `buying groceries at ${shop.name}` }, 0.15 + (a.pantry === 0 ? 0.75 : a.pantry < 2 ? 0.4 : 0.05) + deficit('hunger') * 0.25);
+    }
     add({ kind: 'idle', building: home, group: 'sofa', duration: 30, label: 'pottering about at home' }, 0.12);
 
     choices.sort((x, y) => y.score - x.score);
@@ -241,6 +276,7 @@ export class Engine {
     if (!a.path.length) {
       a.activity.started = true;
       a.activity.until = this.world.time + c.duration;
+      this.begin(a);
     }
   }
 
@@ -259,6 +295,47 @@ export class Engine {
       }
     }
     return best;
+  }
+
+  /** An activity has started where it happens: pay for it, or use up what it uses. */
+  private begin(a: AgentState): void {
+    const act = a.activity;
+    if (!act) return;
+    const place = this.buildings.get(act.buildingId);
+    if (act.kind === 'eat_out') this.pay(a, PRICES.cafeMeal);
+    else if (act.kind === 'socialize' && place?.kind === 'cafe') this.pay(a, PRICES.coffee);
+    else if (act.kind === 'shop') {
+      this.pay(a, PRICES.groceries);
+      a.pantry += PRICES.groceryMeals;
+    } else if (act.kind === 'eat_home') a.pantry = Math.max(0, a.pantry - 1);
+    // Money spent in town is money earned by the people who work there: the café owner and the grocer.
+    if (place && (act.kind === 'eat_out' || act.kind === 'shop' || (act.kind === 'socialize' && place.kind === 'cafe'))) {
+      const owner = this.world.agents.find((o) => o.workId === place.id && o !== a && /owner|grocer/.test(o.occupation));
+      const price = act.kind === 'eat_out' ? PRICES.cafeMeal : act.kind === 'shop' ? PRICES.groceries : PRICES.coffee;
+      if (owner) this.earn(owner, price * 0.3);
+    }
+  }
+
+  private earn(a: AgentState, amount: number): void {
+    const before = a.money;
+    a.money = round2(a.money + amount);
+    a.earnedToday = round2(a.earnedToday + amount);
+    const hit = MILESTONES.filter((m) => before < m && a.money >= m && m > (a.topMilestone ?? 0)).pop();
+    if (hit) {
+      a.topMilestone = hit;
+      this.remember(a, 'life', `Reached $${hit.toLocaleString('en-US')} in savings.`, 5);
+      this.feed('life', `${a.name} ${a.surname} has saved $${hit.toLocaleString('en-US')}.`, [a.id]);
+    }
+    if (before < 0 && a.money >= 0) this.feed('life', `${a.name} is out of debt.`, [a.id]);
+  }
+
+  private pay(a: AgentState, amount: number): void {
+    const before = a.money;
+    a.money = round2(a.money - amount);
+    if (before >= 0 && a.money < 0) {
+      this.remember(a, 'life', 'Ran out of money and went into debt.', 6);
+      this.feed('life', `${a.name} ${a.surname} has run out of money and is in debt.`, [a.id]);
+    }
   }
 
   /** Pick a free spot in the group, so two people don't stand on the same chair. */
@@ -558,6 +635,8 @@ export class Engine {
       plan: a.plan,
       beliefs: a.beliefs,
       memories: [...important, ...recent].map((m: Memory) => `${weekdayOf(m.t)} ${clockText(m.t)}: ${m.text}`),
+      ambition: a.ambition,
+      money: moneyText(a),
     };
   }
 
@@ -613,6 +692,12 @@ export class Engine {
       needs: { ...a.needs },
       plan: a.plan,
       beliefs: [...a.beliefs],
+      ambition: a.ambition,
+      money: Math.round(a.money),
+      earnedToday: Math.round(a.earnedToday),
+      wage: a.wage,
+      pension: a.pension,
+      pantry: a.pantry,
       memories: a.memories.slice(-25).reverse().map((m) => ({ t: m.t, kind: m.kind, text: m.text })),
       relationships: Object.entries(a.relationships)
         .map(([oid, r]) => ({ id: oid, name: this.agents.get(oid)?.name ?? oid, affinity: Math.round(r.affinity), label: relationWord(r.affinity), talks: r.talks }))
@@ -650,11 +735,19 @@ function groupOf(kind: ActionKind, b: Building): AnchorGroup {
   if (b.kind === 'park') return 'bench';
   if (b.kind === 'home') {
     if (kind === 'sleep' || kind === 'wash') return 'bed';
-    if (kind === 'eat_home' || kind === 'work') return 'dining';
+    if (kind === 'eat_home' || kind === 'eat_leftovers' || kind === 'work' || kind === 'side_project') return 'dining';
     return 'sofa';
   }
   if (kind === 'work') return b.kind === 'office' || b.kind === 'tech' ? 'back' : 'counter';
   return 'front';
+}
+
+/** A person's money situation in a sentence, for the mind and the panel. */
+export function moneyText(a: AgentState): string {
+  const cash = a.money < 0 ? `$${Math.round(-a.money).toLocaleString('en-US')} in debt` : `$${Math.round(a.money).toLocaleString('en-US')} in savings`;
+  const income = a.pension ? `a pension of $${a.pension} a day` : `earns $${a.wage} an hour working`;
+  const food = a.pantry ? `groceries for ${a.pantry} meal${a.pantry === 1 ? '' : 's'}` : 'no food at home';
+  return `${cash}, ${income}, pays $${PRICES.dailyRent} a day in rent and bills, ${food}`;
 }
 
 export function relationWord(affinity: number): string {

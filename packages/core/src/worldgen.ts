@@ -1,7 +1,7 @@
 /** Builds a new town from a seed. The same seed always gives the same town and the same people. */
 import { ANCHORS, LOT_XS, TECH_LOT, toWorld, toWorldFacing } from './layout';
 import { Rng } from './rng';
-import type { Building, BuildingKind, Traits, WorldState } from './types';
+import type { AgentState, Building, BuildingKind, Traits, WorldState } from './types';
 
 const FIRST_NAMES = [
   'Maya', 'Dana', 'Noa', 'Eli', 'Lior', 'Sam', 'Ruth', 'Omar', 'Clara', 'Jonah', 'Iris', 'Theo', 'Leah', 'Felix',
@@ -25,18 +25,19 @@ const VENUE_NAMES: Record<Exclude<BuildingKind, 'home'>, string> = {
   park: 'Linden Park',
 };
 
-const JOBS: Record<string, { title: string; work: BuildingKind | null }> = {
-  barista: { title: 'barista', work: 'cafe' },
-  cafeOwner: { title: 'café owner', work: 'cafe' },
-  grocer: { title: 'grocer', work: 'shop' },
-  clerk: { title: 'town clerk', work: 'office' },
-  developer: { title: 'software developer', work: 'tech' },
-  designer: { title: 'product designer', work: 'tech' },
-  accountant: { title: 'accountant', work: 'office' },
-  gardener: { title: 'park gardener', work: 'park' },
-  painter: { title: 'painter who works from home', work: null },
-  writer: { title: 'novelist who works from home', work: null },
-  retired: { title: 'retired teacher', work: null },
+/** Jobs: title, workplace, pay per hour of work (dollars), and the life goal people in that job tend to have. */
+const JOBS: Record<string, { title: string; work: BuildingKind | null; wage: number; pension?: number; ambitions: string[] }> = {
+  barista: { title: 'barista', work: 'cafe', wage: 18, ambitions: ['save enough to open my own bakery on Linden Street', 'become the café manager and one day buy a share of it'] },
+  cafeOwner: { title: 'café owner', work: 'cafe', wage: 30, ambitions: ['turn the Corner Café into the heart of town and open a second place', 'make the café profitable enough to buy the building'] },
+  grocer: { title: 'grocer', work: 'shop', wage: 22, ambitions: ['grow Maple Grocery into the supplier for every business in town', 'open a farmers market in Linden Park'] },
+  clerk: { title: 'town clerk', work: 'office', wage: 25, ambitions: ['get the town to build a proper square with shops, and run for mayor one day', 'bring new families and businesses to Agentville'] },
+  developer: { title: 'software developer', work: 'tech', wage: 48, ambitions: ['become lead engineer at Linden Labs, then start my own company here', 'build an app that every business in town uses'] },
+  designer: { title: 'product designer', work: 'tech', wage: 40, ambitions: ['launch my own product and make Linden Labs famous', 'save enough to buy my own house on the street'] },
+  accountant: { title: 'accountant', work: 'office', wage: 34, ambitions: ['become the town\'s go-to financial adviser and invest in local businesses', 'build up enough savings to never worry about money again'] },
+  gardener: { title: 'park gardener', work: 'park', wage: 19, ambitions: ['make Linden Park the pride of the town and start a landscaping business', 'earn enough to rent a plot and grow produce to sell'] },
+  painter: { title: 'painter who works from home', work: null, wage: 16, ambitions: ['sell enough paintings to open a gallery on Linden Street', 'get commissioned to paint a mural for the town'] },
+  writer: { title: 'novelist who works from home', work: null, wage: 14, ambitions: ['write a bestseller that puts Agentville on the map', 'earn a living from writing alone'] },
+  retired: { title: 'retired teacher', work: null, wage: 0, pension: 85, ambitions: ['help the town grow by mentoring young people, and keep my savings growing', 'start a small tutoring business'] },
 };
 const JOB_ORDER = ['barista', 'grocer', 'clerk', 'developer', 'gardener', 'cafeOwner', 'accountant', 'designer', 'retired', 'writer'];
 
@@ -56,6 +57,22 @@ function describe(t: Traits): string[] {
 export function personalityText(t: Traits): string {
   const w = describe(t);
   return w.length > 1 ? `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}` : w[0];
+}
+
+/** Fills in the money fields for people saved before the town had an economy. */
+export function withEconomy(a: AgentState): AgentState {
+  if (typeof a.money === 'number') return a;
+  const job = Object.values(JOBS).find((j) => j.title === a.occupation) ?? { wage: 20, pension: 0, ambitions: ['make a good life in Agentville and get ahead'] };
+  return Object.assign(a, {
+    money: job.wage * 20 + (job.pension ?? 0) * 6,
+    wage: job.wage,
+    pension: job.pension ?? 0,
+    pantry: 3,
+    ambition: job.ambitions[0],
+    drive: 0.6,
+    lastRentDay: Math.floor(a.lastPlanDay) || 1,
+    earnedToday: 0,
+  });
 }
 
 export function generateWorld(seed: number): WorldState {
@@ -125,6 +142,8 @@ export function generateWorld(seed: number): WorldState {
         `${name} ${surname} is a ${age}-year-old ${job.title}` +
         (housemate ? `, sharing the ${surname} house with ${housemate.name}` : size === 2 ? ` living in the ${surname} house` : ` who lives alone in the ${surname} house`) +
         `. ${capitalise(personalityText(traits))}.`;
+
+      const startMoney = Math.round(rng.range(job.wage * 8, job.wage * 40) + (job.pension ?? 0) * 6);
       world.agents.push({
         id: `a${n + 1}`,
         name,
@@ -158,6 +177,14 @@ export function generateWorld(seed: number): WorldState {
         lastConversation: -1e9,
         lastPlanDay: 0,
         lastReflection: 0,
+        money: startMoney,
+        wage: job.wage,
+        pension: job.pension ?? 0,
+        pantry: rng.int(2, 6),
+        ambition: rng.pick(job.ambitions),
+        drive: round(rng.range(0.35, 0.95)),
+        lastRentDay: 1,
+        earnedToday: 0,
       });
       n++;
     }

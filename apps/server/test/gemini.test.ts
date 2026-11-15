@@ -3,7 +3,7 @@ import type { ConverseRequest, PersonBrief } from '@agentville/core';
 import { askGemini, GeminiError } from '../src/gemini';
 import { conversePrompt, planPrompt } from '../src/prompts';
 
-const person = (name: string): PersonBrief => ({ name, age: 30, occupation: 'barista', personality: 'kind', bio: `${name} is a barista.`, plan: '', beliefs: [], memories: [] });
+const person = (name: string): PersonBrief => ({ name, age: 30, occupation: 'barista', personality: 'kind', bio: `${name} is a barista.`, plan: '', beliefs: [], memories: [], ambition: 'open a bakery', money: '$500 in savings' });
 const req: ConverseRequest = {
   time: 'Monday 09:00',
   place: 'Corner Café',

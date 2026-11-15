@@ -33,7 +33,7 @@ export interface Traits {
   neuroticism: number;
 }
 
-export type MemoryKind = 'observation' | 'conversation' | 'gossip' | 'reflection' | 'plan' | 'reaction';
+export type MemoryKind = 'observation' | 'conversation' | 'gossip' | 'reflection' | 'plan' | 'reaction' | 'life';
 
 export interface Memory {
   /** Sim minute when it happened. */
@@ -53,7 +53,7 @@ export interface Relationship {
   lastTalk: number | null;
 }
 
-export type ActionKind = 'sleep' | 'eat_home' | 'eat_out' | 'work' | 'socialize' | 'relax' | 'wash' | 'shop' | 'idle';
+export type ActionKind = 'sleep' | 'eat_home' | 'eat_leftovers' | 'eat_out' | 'work' | 'side_project' | 'socialize' | 'relax' | 'wash' | 'shop' | 'idle';
 
 export interface Activity {
   kind: ActionKind;
@@ -103,6 +103,23 @@ export interface AgentState {
   /** Sim minute of the last plan and reflection. */
   lastPlanDay: number;
   lastReflection: number;
+
+  /** Money in dollars. Can go below zero (debt). Nothing is free: meals, groceries and rent all cost money. */
+  money: number;
+  /** Pay per hour of work (a pension per day for the retired is paid as `pension`). */
+  wage: number;
+  pension: number;
+  /** Meals' worth of groceries at home. Without groceries, eating at home means scraping by on leftovers. */
+  pantry: number;
+  /** What this person is working toward in life, in their own words. */
+  ambition: string;
+  /** How hard they push for it, 0 to 1. */
+  drive: number;
+  /** Day of the last rent payment, and money earned today (for the panel and the mind). */
+  lastRentDay: number;
+  earnedToday: number;
+  /** The highest savings milestone they have reached (each one makes the news once). */
+  topMilestone?: number;
 }
 
 export type Tone = 'warm' | 'friendly' | 'neutral' | 'tense' | 'heated';

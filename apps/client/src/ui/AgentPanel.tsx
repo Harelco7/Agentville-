@@ -74,6 +74,19 @@ export function AgentPanel() {
       </section>
 
       <section>
+        <h3>Money and ambition</h3>
+        <div className="money">
+          <strong className={detail.money < 0 ? 'neg' : ''}>{detail.money < 0 ? `−$${(-detail.money).toLocaleString('en-US')}` : `$${detail.money.toLocaleString('en-US')}`}</strong>
+          <span className="sub">
+            {detail.pension ? `pension $${detail.pension} a day` : `$${detail.wage} an hour`} · earned ${detail.earnedToday} today · food at home for {detail.pantry} meal{detail.pantry === 1 ? '' : 's'}
+          </span>
+        </div>
+        <p>
+          <strong>Ambition:</strong> {detail.ambition}
+        </p>
+      </section>
+
+      <section>
         <h3>About</h3>
         <p>{detail.bio}</p>
         {detail.plan && (

@@ -93,3 +93,42 @@ describe('engine', () => {
     expect(restored.world.time).toBeGreaterThan(engine.world.time);
   });
 });
+
+describe('money: nothing is free', () => {
+  it('pays wages for work, charges rent every day, and keeps the broke out of the café', async () => {
+    const world = generateWorld(11);
+    const engine = new Engine(world, { mind: new ScriptedMind() });
+    engine.speed = BASE_SPEED * 20;
+    const dev = world.agents.find((a) => a.occupation === 'software developer')!;
+    const broke = world.agents.find((a) => a !== dev && a.wage > 0)!;
+    broke.money = -50;
+    broke.pantry = 0;
+    const start = dev.money;
+    let cafeVisits = 0;
+    const end = world.time + 3 * 1440;
+    while (world.time < end) {
+      engine.step(0.5);
+      if (broke.activity?.kind === 'eat_out' || (broke.activity?.kind === 'socialize' && broke.activity.buildingId === 'cafe')) {
+        if (broke.money < 0) cafeVisits++;
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    // Three days of developer wages beat three days of rent and food.
+    expect(dev.money).toBeGreaterThan(start + 100);
+    expect(cafeVisits).toBe(0);
+    // The broke person worked their way back up.
+    expect(broke.money).toBeGreaterThan(-50);
+    for (const a of world.agents) {
+      expect(a.ambition.length).toBeGreaterThan(10);
+      expect(engine.brief(a).money).toMatch(/\$/);
+    }
+  });
+
+  it('gives older saves an economy', () => {
+    const world = generateWorld(3);
+    for (const a of world.agents) delete (a as Partial<typeof a>).money;
+    const engine = new Engine(world, { mind: new ScriptedMind() });
+    for (const a of engine.world.agents) expect(typeof a.money).toBe('number');
+  });
+});
