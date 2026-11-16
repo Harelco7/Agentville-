@@ -4,7 +4,7 @@ import { useMats } from './materials';
 
 const Y = 0.3; // floor height
 
-function Table({ x, z, w = 0.8, d = 0.8 }: { x: number; z: number; w?: number; d?: number }) {
+export function Table({ x, z, w = 0.8, d = 0.8 }: { x: number; z: number; w?: number; d?: number }) {
   const m = useMats();
   return (
     <group position={[x, Y, z]}>
@@ -19,7 +19,7 @@ function Table({ x, z, w = 0.8, d = 0.8 }: { x: number; z: number; w?: number; d
   );
 }
 
-function Stool({ x, z, color }: { x: number; z: number; color: string }) {
+export function Stool({ x, z, color }: { x: number; z: number; color: string }) {
   const m = useMats();
   return (
     <mesh position={[x, Y + 0.23, z]} material={m.fabric(color)} castShadow>
@@ -29,7 +29,7 @@ function Stool({ x, z, color }: { x: number; z: number; color: string }) {
 }
 
 /** Back counter with a coffee machine, used by the café and shop. */
-function Counter({ x, z, width }: { x: number; z: number; width: number }) {
+export function Counter({ x, z, width }: { x: number; z: number; width: number }) {
   const m = useMats();
   return (
     <group position={[x, Y, z]}>

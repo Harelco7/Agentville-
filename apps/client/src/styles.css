@@ -55,6 +55,36 @@ button.active { background: var(--ink); color: var(--panel); }
 .k-reaction { background: #f7e0dd; color: #7a2d22; }
 .k-plan { background: #e5f0dc; color: #36561f; }
 .k-reflection { background: #ece2f4; color: #573274; }
+.k-group, .k-party { background: #f6e3f1; color: #7a2462; }
+.k-friendship { background: #dff3e6; color: #1f6040; }
+.k-fight { background: #f7d9d4; color: #8a2216; }
+.k-money { background: #f5ecd2; color: #6e5212; }
+.k-job { background: #e1e7f5; color: #2c3f74; }
+.k-business { background: #fde6cc; color: #84430d; }
+.k-build { background: #ece6dc; color: #5a4526; }
+.k-move, .k-newcomer { background: #dbf0f2; color: #1d5d64; }
+.k-decision { background: #e9e4f7; color: #44337a; }
+.k-life, .k-system { background: #e9ece8; color: #3e4a43; }
+.market { position: fixed; z-index: 20; left: 16px; top: 96px; width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 34vh - 190px); display: flex; flex-direction: column; overflow: hidden; }
+.market-body { overflow-y: auto; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.market .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.market .stats div { display: flex; flex-direction: column; align-items: center; background: var(--chip); border-radius: 10px; padding: 6px 4px; }
+.market .stats strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.market h3 { margin: 0 0 4px; font-size: 12px; font-weight: 800; text-transform: capitalize; }
+.market h3 .rivals { color: #b8322b; text-transform: none; }
+.market h3 .usual { color: var(--ink-2); font-weight: 600; text-transform: none; }
+.market ul { list-style: none; margin: 0; padding: 0; }
+.market li button { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; width: 100%; text-align: left; padding: 5px 6px; min-height: 0; font-size: 13px; font-weight: 600; border-radius: 8px; }
+.market .price { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.market .cut { color: #1f7a45; }
+.market .up { color: #b8322b; }
+.market .pos, .panel .pos { color: #1f7a45; font-weight: 700; text-align: right; }
+.market .neg { color: #b8322b; font-weight: 700; text-align: right; }
+.panel .debt { font-size: 13px; }
+.panel .project .bar { margin-top: 4px; }
+.tag { margin-left: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.tag.sick { background: #f7d9d4; color: #8a2216; }
+.sign.building { background: #f08a24; color: #1f1a14; }
 
 .panel { position: fixed; z-index: 25; top: 96px; right: 16px; bottom: 64px; width: min(360px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 14px; }
 .panel-head { display: flex; justify-content: space-between; gap: 8px; }
@@ -88,7 +118,7 @@ button.active { background: var(--ink); color: var(--panel); }
 .camera-pad button { min-width: 38px; min-height: 38px; padding: 0 8px; font-size: 17px; touch-action: none; user-select: none; -webkit-user-select: none; }
 .camera-pad button.spin { font-size: 13px; }
 .camera-pad .arrows button { font-size: 12px; }
-@media (max-width: 1240px) { .camera-pad { top: auto; bottom: 64px; right: 16px; } }
+@media (max-width: 1420px) { .camera-pad { top: auto; bottom: 64px; right: 16px; } }
 @media (max-width: 820px) { .camera-pad .arrows { display: none; } .camera-pad { bottom: 16px; } }
 
 .sign.tech { background: #1d3f73; font-size: 12px; }

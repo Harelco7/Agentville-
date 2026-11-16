@@ -6,7 +6,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { BASE_SPEED, Engine, generateWorld, ScriptedMind, type ClientMessage, type ServerMessage, type TownStatus } from '@agentville/core';
+import { BASE_SPEED, Engine, generateWorld, isCurrentWorld, ScriptedMind, type ClientMessage, type ServerMessage, type TownStatus } from '@agentville/core';
 import { Budget } from './budget';
 import { ClaudeMind, type MindStatus } from './claudeMind';
 import { GeminiMind } from './gemini';
@@ -20,8 +20,11 @@ const SAVE_MS = 60_000;
 async function main() {
   const store = await openStore(config.databaseUrl, config.dataDir);
   const saved = await store.loadWorld();
-  const world = saved ?? generateWorld(config.seed);
-  console.log(saved ? `[town] Restored the town at sim minute ${Math.round(world.time)}.` : `[town] Founded a new town from seed ${config.seed}.`);
+  // A town saved by an older version of Agentville can't run on today's rules, so it starts over.
+  const usable = isCurrentWorld(saved) ? saved : null;
+  if (saved && !usable) console.log('[town] The saved town is from an older version. Founding a new one.');
+  const world = usable ?? generateWorld(config.seed);
+  console.log(usable ? `[town] Restored the town at sim minute ${Math.round(world.time)}.` : `[town] Founded a new town from seed ${config.seed}.`);
 
   const budget = new Budget(config.weeklyBudgetUsd, await store.spentOn(today()));
   let mindStatus: MindStatus =
@@ -81,8 +84,14 @@ async function main() {
     last = now;
   }, STEP_MS);
 
+  let sentRev = engine.world.buildingsRev;
   setInterval(() => {
     if (!clients.size) return;
+    // Buildings change rarely (a business opens, a house goes up), so they're only sent when they do.
+    if (engine.world.buildingsRev !== sentRev) {
+      sentRev = engine.world.buildingsRev;
+      broadcast({ type: 'buildings', buildings: engine.world.buildings });
+    }
     broadcast({ type: 'tick', tick: engine.view() });
     for (const [ws, id] of inspecting) if (id) send(ws, { type: 'agent', detail: engine.detail(id) });
   }, TICK_MS);

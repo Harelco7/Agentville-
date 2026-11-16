@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { PointLight } from 'three';
-import { LOT_Z } from '@agentville/core';
+import { lotCentre } from '@agentville/core';
 import { sunAt } from './sun';
 import { useView } from '../store';
 import { useTown } from '../town/store';
@@ -21,7 +21,8 @@ export function CutawayLight() {
       l.intensity = 0;
       return;
     }
-    l.position.set(b.x, 2.7, b.side * (LOT_Z - 0.5));
+    const c = lotCentre(b);
+    l.position.set(c.x, 2.7, c.z - b.side * 0.5);
     l.intensity = 14 + sunAt(hour).night * 24;
   });
   return <pointLight ref={light} color="#ffcf96" distance={16} decay={2} intensity={0} />;

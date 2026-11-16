@@ -10,6 +10,8 @@ import {
   ScriptedMind,
   type ConverseRequest,
   type ConverseResult,
+  type DecideRequest,
+  type DecideResult,
   type Mind,
   type PlanRequest,
   type PlanResult,
@@ -18,7 +20,7 @@ import {
   type ReflectRequest,
   type ReflectResult,
 } from '@agentville/core';
-import { conversePrompt, planPrompt, reactPrompt, reflectPrompt, type Prompt } from './prompts';
+import { conversePrompt, decidePrompt, planPrompt, reactPrompt, reflectPrompt, type Prompt } from './prompts';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const API = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -143,6 +145,9 @@ export class GeminiMind implements Mind {
 
   converse(req: ConverseRequest): Promise<ConverseResult> {
     return this.ask(conversePrompt(req), true, () => this.scripted.converse(req));
+  }
+  decide(req: DecideRequest): Promise<DecideResult> {
+    return this.ask(decidePrompt(req), true, () => this.scripted.decide(req));
   }
   planDay(req: PlanRequest): Promise<PlanResult> {
     return this.ask(planPrompt(req), false, () => this.scripted.planDay(req));

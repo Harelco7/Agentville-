@@ -5,6 +5,8 @@ export * from './mind';
 export * from './rng';
 export * from './worldgen';
 export * from './engine';
+export * from './catalog';
+export { Economy, place, businessFor, newBusiness, MAX_POPULATION } from './economy';
 export { ScriptedMind } from './scriptedMind';
 export * from './protocol';
 export * from './cloud';

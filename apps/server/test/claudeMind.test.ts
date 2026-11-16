@@ -20,10 +20,8 @@ const person = (name: string): PersonBrief => ({
 const req: ConverseRequest = {
   time: 'Monday 09:00, day 1 of year 1',
   place: 'Corner Café',
-  a: person('Maya Cohen'),
-  b: person('Dana Levi'),
-  aAboutB: 'Maya sees Dana as a friend.',
-  bAboutA: 'Dana sees Maya as a friend.',
+  people: [person('Maya Cohen'), person('Dana Levi')],
+  feelings: ['Maya sees Dana as a friend.', 'Dana sees Maya as a friend.'],
   recentTopics: [],
   maxLines: 20,
 };
@@ -68,10 +66,8 @@ const conversation = {
   topic: 'coffee',
   tone: 'friendly',
   summary: 'Maya and Dana said good morning.',
-  aAffinityChange: 1,
-  bAffinityChange: 1,
-  aMemory: 'Said hi to Dana.',
-  bMemory: 'Said hi to Maya.',
+  affinityChanges: [1, 1],
+  memories: ['Said hi to Dana.', 'Said hi to Maya.'],
   gossip: null,
   importance: 1,
 };
@@ -94,7 +90,7 @@ describe('ClaudeMind', () => {
   it('uses the stronger model with a fallback for close friends', async () => {
     const seen: object[] = [];
     const mind = new ClaudeMind({ routineModel: 'claude-haiku-5-5', deepModel: 'claude-sonnet-5-5', maxConcurrent: 2 }, new Budget(84), new MemoryStore(), () => {}, fakeClient(conversation, undefined, seen));
-    await mind.converse({ ...req, aAboutB: 'Maya sees Dana as a close friend.' });
+    await mind.converse({ ...req, feelings: ['Maya sees Dana as a close friend.'] });
     expect(seen[0]).toMatchObject({ model: 'claude-sonnet-5-5', fallbacks: 'default', betas: ['server-side-fallback-2026-07-01'] });
   });
 

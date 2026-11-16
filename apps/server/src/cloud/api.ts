@@ -19,7 +19,7 @@ const LEASE_SECONDS = 30;
 /** Watchers who asked within this many seconds count as watching (the host then shares its view). */
 const WATCHER_SECONDS = 10;
 const MAX_BODY = 4_000_000;
-const KINDS: MindKind[] = ['conversation', 'plan', 'reflection', 'reaction'];
+const KINDS: MindKind[] = ['conversation', 'plan', 'reflection', 'reaction', 'decision'];
 
 export interface CloudEnv {
   databaseUrl: string | undefined;

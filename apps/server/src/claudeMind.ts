@@ -12,6 +12,8 @@ import {
   ScriptedMind,
   type ConverseRequest,
   type ConverseResult,
+  type DecideRequest,
+  type DecideResult,
   type Mind,
   type PlanRequest,
   type PlanResult,
@@ -21,7 +23,7 @@ import {
   type ReflectResult,
 } from '@agentville/core';
 import { Budget, BudgetExceededError, costOf } from './budget';
-import { conversePrompt, planPrompt, reactPrompt, reflectPrompt } from './prompts';
+import { conversePrompt, decidePrompt, planPrompt, reactPrompt, reflectPrompt } from './prompts';
 import type { Store } from './store';
 
 const QUEUE_LIMIT = 40;
@@ -59,8 +61,13 @@ export class ClaudeMind implements Mind {
 
   async converse(req: ConverseRequest): Promise<ConverseResult> {
     // Close friends and rivals get the stronger model: those conversations matter more.
-    const strong = /close friend|dislike/.test(req.aAboutB + req.bAboutA);
+    const strong = /close friend|dislike/.test(req.feelings.join(' '));
     return this.run({ ...conversePrompt(req), model: strong ? this.opts.deepModel : this.opts.routineModel }, () => this.scripted.converse(req));
+  }
+
+  /** Big life decisions are rare and matter, so they go to the stronger model. */
+  decide(req: DecideRequest): Promise<DecideResult> {
+    return this.run({ ...decidePrompt(req), model: this.opts.deepModel }, () => this.scripted.decide(req));
   }
 
   planDay(req: PlanRequest): Promise<PlanResult> {

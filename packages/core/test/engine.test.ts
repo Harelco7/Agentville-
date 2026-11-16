@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_SPEED, Engine, generateWorld, MAX_CONVERSATION_LINES, ScriptedMind, type ConverseResult, type FeedEvent } from '../src';
+import { BASE_SPEED, Engine, generateWorld, isCurrentWorld, MAX_CONVERSATION_LINES, ScriptedMind, type ConverseResult, type FeedEvent } from '../src';
 
 /** Runs the engine for `simMinutes`, letting Mind promises settle between steps. */
 async function run(engine: Engine, simMinutes: number, stepSeconds = 0.25) {
@@ -17,13 +17,19 @@ describe('world generation', () => {
     expect(JSON.stringify(generateWorld(42))).not.toBe(JSON.stringify(generateWorld(43)));
   });
 
-  it('builds a café, shop, office, park, homes and ten people', () => {
+  it('builds three neighbourhoods, every kind of place, and about thirty people', () => {
     const w = generateWorld(7);
-    const kinds = w.buildings.map((b) => b.kind).sort();
-    expect(kinds.filter((k) => k === 'home')).toHaveLength(8);
-    for (const k of ['cafe', 'shop', 'office', 'park']) expect(kinds).toContain(k);
-    expect(w.agents).toHaveLength(10);
+    const kinds = new Set(w.buildings.map((b) => b.kind));
+    for (const k of ['cafe', 'shop', 'office', 'tech', 'park', 'townhall', 'bank', 'clinic', 'club', 'pool', 'factory', 'apartments', 'home', 'villa', 'store', 'lot']) expect(kinds).toContain(k);
+    expect(new Set(w.buildings.map((b) => b.district))).toEqual(new Set(['mill', 'centre', 'hill']));
+    expect(w.agents.length).toBeGreaterThanOrEqual(28);
     for (const a of w.agents) expect(w.buildings.some((b) => b.id === a.homeId)).toBe(true);
+    // The founding families are still here.
+    const theo = w.agents.find((a) => a.name === 'Theo' && a.surname === 'Novak')!;
+    expect(theo.occupation).toBe('barista');
+    expect(theo.ambition).toMatch(/bakery/);
+    // Each household fits in its home.
+    for (const b of w.buildings) expect(new Set(w.agents.filter((a) => a.homeId === b.id).map((a) => a.household)).size).toBeLessThanOrEqual(Math.max(b.units, 0));
   });
 });
 
@@ -53,10 +59,8 @@ describe('engine', () => {
           topic: 'everything',
           tone: 'friendly',
           summary: 'A long chat.',
-          aAffinityChange: 1,
-          bAffinityChange: 1,
-          aMemory: 'Talked a lot.',
-          bMemory: 'Talked a lot.',
+          affinityChanges: [1, 1, 1, 1],
+          memories: ['Talked a lot.', 'Talked a lot.', 'Talked a lot.', 'Talked a lot.'],
           gossip: null,
           importance: 2,
         };
@@ -125,10 +129,9 @@ describe('money: nothing is free', () => {
     }
   });
 
-  it('gives older saves an economy', () => {
-    const world = generateWorld(3);
-    for (const a of world.agents) delete (a as Partial<typeof a>).money;
-    const engine = new Engine(world, { mind: new ScriptedMind() });
-    for (const a of engine.world.agents) expect(typeof a.money).toBe('number');
+  it('recognises saves from before the town grew', () => {
+    expect(isCurrentWorld(generateWorld(3))).toBe(true);
+    expect(isCurrentWorld({ ...generateWorld(3), version: 1 })).toBe(false);
+    expect(isCurrentWorld(null)).toBe(false);
   });
 });

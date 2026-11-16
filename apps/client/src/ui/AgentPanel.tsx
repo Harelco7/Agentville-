@@ -1,4 +1,6 @@
-import { clockText, weekdayOf, type NeedKey } from '@agentville/core';
+import { CLASS_WORD, clockText, weekdayOf, type NeedKey } from '@agentville/core';
+
+const money = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
 import { useTown } from '../town/store';
 
 const NEEDS: { key: NeedKey; label: string }[] = [
@@ -30,14 +32,18 @@ export function AgentPanel() {
             {detail.name} {detail.surname}
           </h2>
           <p className="sub">
-            {detail.age} · {detail.occupation} · {detail.home}
+            {detail.age} · {detail.occupation} · {CLASS_WORD[detail.socialClass]}
           </p>
+          <p className="sub">{detail.homeText}</p>
         </div>
         <button type="button" onClick={() => select(null)} aria-label="Close">
           ✕
         </button>
       </div>
-      <p className="now">{detail.activity}</p>
+      <p className="now">
+        {detail.activity}
+        {detail.sick && <span className="tag sick">unwell</span>}
+      </p>
 
       {detail.conversation && (
         <section>
@@ -81,6 +87,29 @@ export function AgentPanel() {
             {detail.pension ? `pension $${detail.pension} a day` : `$${detail.wage} an hour`} · earned ${detail.earnedToday} today · food at home for {detail.pantry} meal{detail.pantry === 1 ? '' : 's'}
           </span>
         </div>
+        {detail.costsPerDay > 0 && <p className="sub">Home and loans cost {money(detail.costsPerDay)} a day.</p>}
+        {detail.debts.map((d, i) => (
+          <p key={i} className="debt">
+            <strong>{d.kind === 'mortgage' ? 'Mortgage' : 'Loan'}</strong> {money(d.balance)} left for {d.purpose}, {money(d.perDay)} a day
+          </p>
+        ))}
+        {detail.business && (
+          <p>
+            <strong>Owns {detail.business.name}</strong>
+            <span className={detail.business.lastProfit < 0 ? 'neg' : 'pos'}> · {money(detail.business.lastProfit)} yesterday</span>
+            {detail.business.partners.length > 0 && <span className="sub"> · partners: {detail.business.partners.join(', ')}</span>}
+          </p>
+        )}
+        {detail.project && (
+          <div className="project">
+            <span>
+              Building {detail.project.what}: {Math.round(detail.project.progress * 100)}%
+            </span>
+            <div className="bar">
+              <div className="ok" style={{ width: `${Math.round(detail.project.progress * 100)}%` }} />
+            </div>
+          </div>
+        )}
         <p>
           <strong>Ambition:</strong> {detail.ambition}
         </p>

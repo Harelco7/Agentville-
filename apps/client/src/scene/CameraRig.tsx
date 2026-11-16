@@ -14,7 +14,7 @@ type MapControlsImpl = ElementRef<typeof MapControls>;
 import { useTown } from '../town/store';
 
 /** How far the camera's focus point may wander from the middle of the street. */
-const BOUNDS = { x: 95, z: 45 };
+const BOUNDS = { x: 210, z: 95 };
 const MOVE_SPEED = 22; // metres per second at a normal zoom
 const TURN_SPEED = 1.6; // radians per second
 const ZOOM_SPEED = 1.6; // factor per second
@@ -40,6 +40,11 @@ export function spinCamera() {
 }
 export function resetCamera() {
   goHome = true;
+}
+/** A spot the camera should glide to (from the news feed), picked up on the next frame. */
+let pendingFly: { x: number; z: number } | null = null;
+export function flyCamera(at: { x: number; z: number }) {
+  pendingFly = at;
 }
 
 export function CameraRig() {
@@ -180,6 +185,14 @@ export function CameraRig() {
       camera.position.copy(c.target).add(offset.setLength(next));
     }
 
+    if (pendingFly) {
+      flyTo.current = clampTarget(new Vector3(pendingFly.x, 1, pendingFly.z));
+      following.current = null;
+      spinLeft = 0;
+      pendingFly = null;
+      // Come in close enough to see what's happening.
+      if (distance > 60) camera.position.copy(c.target).add(offset.setLength(60));
+    }
     // Glide to a double-clicked spot, or keep the followed person in view.
     let goal = flyTo.current;
     if (following.current) {
@@ -203,7 +216,7 @@ export function CameraRig() {
       makeDefault
       target={[0, 1, 0]}
       minDistance={6}
-      maxDistance={150}
+      maxDistance={280}
       maxPolarAngle={1.45}
       enableDamping
       dampingFactor={0.12}
