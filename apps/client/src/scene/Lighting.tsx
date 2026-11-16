@@ -6,6 +6,7 @@ import { sunAt } from './sun';
 import { useMats } from './materials';
 import { useView } from '../store';
 import { useHdri } from '../assets';
+import { LITE } from '../quality';
 
 /** Sun, moon, sky, image-based light and fog, all driven by the hour of the day. */
 export function Lighting() {
@@ -62,7 +63,7 @@ export function Lighting() {
       <directionalLight
         ref={sun}
         castShadow
-        shadow-mapSize={[4096, 4096]}
+        shadow-mapSize={LITE ? [2048, 2048] : [4096, 4096]}
         shadow-camera-left={-75}
         shadow-camera-right={75}
         shadow-camera-top={75}

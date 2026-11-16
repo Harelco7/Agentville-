@@ -112,6 +112,7 @@ button.active { background: var(--ink); color: var(--panel); }
   .feed { max-height: 28vh; }
   .panel { top: auto; height: 55vh; bottom: 16px; }
   .hint { display: none; }
+  .market { top: 196px; max-height: 30vh; }
 }
 .camera-pad { position: fixed; z-index: 30; top: 16px; right: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px; max-width: calc(100vw - 32px); }
 .camera-pad .pad-group { display: flex; gap: 2px; padding: 2px; background: var(--chip); border-radius: 12px; }
@@ -125,3 +126,5 @@ button.active { background: var(--ink); color: var(--panel); }
 .money { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
 .money strong { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: #36561f; }
 .money strong.neg { color: #7a2d22; }
+
+body[data-gl-lost='1']::after { content: 'The 3D view stopped: this device ran out of graphics memory. Reload the page, or add ?lite to the address for a lighter view.'; position: fixed; inset: 40% 16px auto; z-index: 99; padding: 16px; border-radius: 14px; background: #1f2a24; color: #fffdf8; font: 700 15px/1.4 system-ui, sans-serif; text-align: center; }

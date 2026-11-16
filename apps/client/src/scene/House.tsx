@@ -5,6 +5,7 @@ import { Group, Material } from 'three';
 import { gable, Opening, scaledBox, wallPieces } from './geometry';
 import { useMats } from './materials';
 import { useView } from '../store';
+import { LITE } from '../quality';
 
 const W = 10; // width along x (m)
 const D = 8; // depth along z (m)
@@ -246,7 +247,7 @@ export function House({ id, position, rotationY, walls, roof, accent, interior, 
   useFrame(() => {
     const g = inside.current;
     if (!g) return;
-    const near = Math.hypot(camera.position.x - position[0], camera.position.z - position[2]) < 75;
+    const near = Math.hypot(camera.position.x - position[0], camera.position.z - position[2]) < (LITE ? 45 : 75);
     g.visible = cut || near;
   });
 
