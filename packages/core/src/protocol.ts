@@ -1,5 +1,5 @@
 /** Messages between the server and the 3D client over the WebSocket. */
-import type { Building, FeedEvent, Needs, TickView, Tone } from './types';
+import type { Building, FeedEvent, Needs, SocialClass, TickView, Tone } from './types';
 
 export interface AgentDetail {
   id: string;
@@ -10,6 +10,9 @@ export interface AgentDetail {
   bio: string;
   personality: string;
   home: string;
+  /** "rents a flat in Mill Court, 6 Linden Street, Mill End (working class)" */
+  homeText: string;
+  socialClass: SocialClass;
   work: string | null;
   activity: string;
   needs: Needs;
@@ -23,6 +26,16 @@ export interface AgentDetail {
   wage: number;
   pension: number;
   pantry: number;
+  /** Home and loan repayments per day. */
+  costsPerDay: number;
+  debts: { kind: 'loan' | 'mortgage'; balance: number; perDay: number; purpose: string }[];
+  /** The business they own, if any. */
+  business: { name: string; lastProfit: number; partners: string[] } | null;
+  /** A building they are having built. */
+  project: { what: string; progress: number } | null;
+  sick: boolean;
+  /** Promotions so far. */
+  level: number;
   /** Newest first. */
   memories: { t: number; kind: string; text: string }[];
   relationships: { id: string; name: string; affinity: number; label: string; talks: number }[];
@@ -45,6 +58,7 @@ export type ServerMessage =
   | { type: 'hello'; seed: number; buildings: Building[]; tick: TickView; feed: FeedEvent[]; status: TownStatus }
   | { type: 'tick'; tick: TickView }
   | { type: 'feed'; event: FeedEvent }
+  | { type: 'buildings'; buildings: Building[] }
   | { type: 'agent'; detail: AgentDetail | null }
   | { type: 'status'; status: TownStatus };
 

@@ -7,10 +7,8 @@ const person = (name: string): PersonBrief => ({ name, age: 30, occupation: 'bar
 const req: ConverseRequest = {
   time: 'Monday 09:00',
   place: 'Corner Café',
-  a: person('Maya Cohen'),
-  b: person('Dana Levi'),
-  aAboutB: 'Maya sees Dana as a friend.',
-  bAboutA: 'Dana sees Maya as a friend.',
+  people: [person('Maya Cohen'), person('Dana Levi')],
+  feelings: ['Maya sees Dana as a friend.', 'Dana sees Maya as a friend.'],
   recentTopics: [],
   maxLines: 20,
 };
@@ -22,10 +20,8 @@ const reply = {
   topic: 'the weather',
   tone: 'warm',
   summary: 'Maya and Dana said hello.',
-  aAffinityChange: 1,
-  bAffinityChange: 1,
-  aMemory: 'Said hi to Dana.',
-  bMemory: 'Said hi to Maya.',
+  affinityChanges: [1, 1],
+  memories: ['Said hi to Dana.', 'Said hi to Maya.'],
   gossip: null,
   importance: 1,
 };

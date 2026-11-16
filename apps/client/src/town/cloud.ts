@@ -10,6 +10,7 @@ import {
   BASE_SPEED,
   Engine,
   generateWorld,
+  isCurrentWorld,
   ScriptedMind,
   type AgentDetail,
   type CloudJoin,
@@ -20,6 +21,8 @@ import {
   type CloudWatch,
   type ConverseRequest,
   type ConverseResult,
+  type DecideRequest,
+  type DecideResult,
   type Mind,
   type PlanRequest,
   type PlanResult,
@@ -30,7 +33,7 @@ import {
   type TownStatus,
   type WorldState,
 } from '@agentville/core';
-import { pushFeed, useTown } from './store';
+import { pushFeed, syncBuildings, useTown } from './store';
 
 const SAVE_EVERY_S = 15;
 const PING_EVERY_S = 4;
@@ -98,8 +101,10 @@ function baseStatus(mind: CloudMindInfo | null, note: string | null = null): Tow
 // ---------------------------------------------------------------- host
 
 async function host(join: Extract<CloudJoin, { role: 'host' }>, my: number) {
-  const fresh = !join.world;
-  const world = (join.world as WorldState | null) ?? generateWorld(join.seed);
+  // A town saved by an older version can't run on today's rules, so it starts over.
+  const saved = isCurrentWorld(join.world) ? (join.world as WorldState) : null;
+  const fresh = !saved;
+  const world = saved ?? generateWorld(join.seed);
   const scripted = new ScriptedMind();
   let replaying = true;
   const engine = new Engine(world, { mind: scripted, onFeed: (e) => !replaying && pushFeed(e) });
@@ -193,7 +198,9 @@ async function host(join: Extract<CloudJoin, { role: 'host' }>, my: number) {
     sinceDetail += dt;
     if (sinceTick >= 0.2) {
       sinceTick = 0;
-      useTown.setState({ tick: engine.view(), tickAt: now });
+      const tick = engine.view();
+      syncBuildings(world.buildings, tick.rev);
+      useTown.setState({ tick, tickAt: now });
     }
     if (sinceDetail >= 0.5) {
       sinceDetail = 0;
@@ -267,9 +274,9 @@ function watch(mind: CloudMindInfo, my: number) {
       }
       const l = w.live;
       if (!l) return;
-      const { selected, buildings } = useTown.getState();
+      const { selected } = useTown.getState();
+      syncBuildings(l.buildings, l.tick.rev);
       useTown.setState({
-        buildings: buildings.length ? buildings : l.buildings,
         tick: l.tick,
         tickAt: performance.now(),
         feed: l.feed,
@@ -286,7 +293,7 @@ function watch(mind: CloudMindInfo, my: number) {
 
 // ---------------------------------------------------------------- the mind
 
-type Kind = 'conversation' | 'plan' | 'reflection' | 'reaction';
+type Kind = 'conversation' | 'plan' | 'reflection' | 'reaction' | 'decision';
 
 /**
  * Sends the big moments to Gemini through /api/mind, one at a time and a few seconds apart, so the town stays
@@ -302,7 +309,7 @@ interface Waiting {
 }
 
 /** How long a request may wait for its turn, in ms. People stand still while their conversation is pending. */
-const MAX_WAIT: Record<Kind, number> = { conversation: 12_000, reaction: 8_000, plan: 90_000, reflection: 90_000 };
+const MAX_WAIT: Record<Kind, number> = { conversation: 12_000, reaction: 8_000, plan: 90_000, reflection: 90_000, decision: 60_000 };
 const QUEUE_LIMIT = 12;
 
 class CloudMind implements Mind {
@@ -340,11 +347,15 @@ class CloudMind implements Mind {
   react(req: ReactRequest): Promise<ReactResult> {
     return this.ask('reaction', req, () => this.scripted.react(req));
   }
+  /** Big life decisions (open a business, buy a home) are rare and worth a real answer. */
+  decide(req: DecideRequest): Promise<DecideResult> {
+    return this.ask('decision', req, () => this.scripted.decide(req));
+  }
 
   private usable(kind: Kind): boolean {
     const used = this.info.usedToday / Math.max(1, this.info.dailyLimit);
     // Conversations and reactions are what people see, so plans and reflections only use the first 60% of the day's calls.
-    const important = kind === 'conversation' || kind === 'reaction';
+    const important = kind === 'conversation' || kind === 'reaction' || kind === 'decision';
     return !this.off && used < 1 && (important || used <= 0.6);
   }
 

@@ -6,7 +6,7 @@
  */
 import { BASE_SPEED, Engine, generateWorld, ScriptedMind, type ClientMessage, type ServerMessage } from '@agentville/core';
 import { tryCloud } from './cloud';
-import { pushFeed, useTown } from './store';
+import { pushFeed, syncBuildings, useTown } from './store';
 
 const DEMO_SEED = 20261115;
 const CONNECT_TIMEOUT_MS = 2500;
@@ -75,6 +75,9 @@ function handle(msg: ServerMessage) {
     case 'tick':
       useTown.setState({ tick: msg.tick, tickAt: performance.now() });
       break;
+    case 'buildings':
+      useTown.setState({ buildings: msg.buildings });
+      break;
     case 'feed':
       pushFeed(msg.event);
       break;
@@ -124,7 +127,9 @@ function startDemo() {
     sinceDetail += dt;
     if (sinceTick >= 0.2) {
       sinceTick = 0;
-      useTown.setState({ tick: engine.view(), tickAt: now });
+      const tick = engine.view();
+      syncBuildings(engine.world.buildings, tick.rev);
+      useTown.setState({ tick, tickAt: now });
     }
     const { selected } = useTown.getState();
     if (sinceDetail >= 0.5) {

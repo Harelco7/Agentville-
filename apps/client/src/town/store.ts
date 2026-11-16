@@ -40,8 +40,16 @@ export const useTown = create<TownState>((set) => ({
 
 const FEED_LIMIT = 60;
 
+/** Copies the town's buildings into the view when they changed, so new and rebuilt places appear. */
+export function syncBuildings(buildings: Building[], rev: number | undefined) {
+  if (rev === undefined || rev === lastRev) return;
+  lastRev = rev;
+  useTown.setState({ buildings: buildings.map((b) => ({ ...b })) });
+}
+let lastRev: number | undefined;
+
 export function pushFeed(e: FeedEvent) {
   useTown.setState((s) => ({ feed: [...s.feed, e].slice(-FEED_LIMIT) }));
 }
 
-if (import.meta.env.DEV) (window as unknown as { __town: typeof useTown }).__town = useTown;
+if (import.meta.env.DEV || import.meta.env.MODE === 'artifact') (window as unknown as { __town: typeof useTown }).__town = useTown;

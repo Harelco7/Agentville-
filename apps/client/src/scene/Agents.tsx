@@ -3,7 +3,8 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, useAnimations } from '@react-three/drei';
 import { AnimationAction, Group } from 'three';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { BASE_SPEED, hourOf, ROAD_HALF, type AgentView, type Looks } from '@agentville/core';
+import { BASE_SPEED, CROSS_XS, hourOf, ROAD_HALF, STREETS, type AgentView, type Looks } from '@agentville/core';
+import { Car } from './Buildings';
 import { dress } from './character';
 import { useModel } from '../assets';
 import { useTown } from '../town/store';
@@ -11,13 +12,32 @@ import { useView } from '../store';
 
 const findAgent = (id: string): AgentView | undefined => useTown.getState().tick?.agents.find((a) => a.id === id);
 
-/** Floor height under a point: building floors, sidewalks and the lawn. */
+const LONG_ZS = STREETS.filter((s) => s.axis === 'x').map((s) => s.at);
+const onWalk = (d: number) => d > ROAD_HALF && d < ROAD_HALF + 2.3;
+
+/** Floor height under a person: building floors, sidewalks, the lawn, or chest-deep in a pool. */
 function groundY(a: AgentView): number {
+  if (a.riding) return 0.02;
+  if (!a.moving && /^swimming|^by the pool/.test(a.activity)) return -0.75;
   if (a.inside) return 0.3;
-  const z = Math.abs(a.z);
-  if (z > ROAD_HALF && z < ROAD_HALF + 2.3) return 0.16;
+  const dz = Math.min(...LONG_ZS.map((z) => Math.abs(a.z - z)));
+  const dx = Math.min(...CROSS_XS.map((x) => Math.abs(a.x - x)));
+  if (onWalk(dz) && dx > ROAD_HALF) return 0.16;
+  if (onWalk(dx) && dz > ROAD_HALF) return 0.16;
   return 0.03;
 }
+
+/** People walk on the sidewalk; when they drive, the car keeps to its side of the road. */
+function lane(a: AgentView): { x: number; z: number } {
+  if (!a.riding) return a;
+  const sz = LONG_ZS.reduce((best, z) => (Math.abs(a.z - z) < Math.abs(a.z - best) ? z : best));
+  if (Math.abs(a.z - sz) < 7) return { x: a.x, z: sz + Math.sign(a.z - sz || 1) * 1.75 };
+  const sx = CROSS_XS.reduce((best, x) => (Math.abs(a.x - x) < Math.abs(a.x - best) ? x : best));
+  if (Math.abs(a.x - sx) < 7) return { x: sx + Math.sign(a.x - sx || 1) * 1.75, z: a.z };
+  return a;
+}
+
+const hashOf = (id: string) => [...id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
 const lerpAngle = (from: number, to: number, t: number) => {
   let d = to - from;
@@ -30,6 +50,8 @@ const lerpAngle = (from: number, to: number, t: number) => {
 function Person({ id }: { id: string }) {
   const { scene, animations } = useModel();
   const group = useRef<Group>(null);
+  const body = useRef<Group>(null);
+  const car = useRef<Group>(null);
   const walking = useRef<boolean | null>(null);
   const looksKey = useTown((s) => JSON.stringify(s.tick?.agents.find((a) => a.id === id)?.looks ?? null));
   const name = useTown((s) => s.tick?.agents.find((a) => a.id === id)?.name ?? '');
@@ -60,9 +82,10 @@ function Person({ id }: { id: string }) {
     const g = group.current;
     const a = findAgent(id);
     if (!g || !a) return;
-    const dx = a.x - g.position.x;
-    const dz = a.z - g.position.z;
-    if (Math.hypot(dx, dz) > 12) g.position.set(a.x, groundY(a), a.z);
+    const { x: tx, z: tz } = lane(a);
+    const dx = tx - g.position.x;
+    const dz = tz - g.position.z;
+    if (Math.hypot(dx, dz) > 12) g.position.set(tx, groundY(a), tz);
     else {
       // Watchers get a picture once a second, so glide more slowly between them.
       const k = Math.min(1, dt * (useTown.getState().mode === 'watch' ? 2.2 : 7));
@@ -71,6 +94,9 @@ function Person({ id }: { id: string }) {
       g.position.y += (groundY(a) - g.position.y) * k;
     }
     g.rotation.y = lerpAngle(g.rotation.y, a.facing, Math.min(1, dt * 8));
+    // On longer trips people drive.
+    if (body.current) body.current.visible = !a.riding;
+    if (car.current) car.current.visible = a.riding;
     if (walking.current !== a.moving) {
       const next = actions[a.moving ? 'walk' : 'idle'];
       const prev = walking.current === null ? null : actions[walking.current ? 'walk' : 'idle'];
@@ -87,7 +113,12 @@ function Person({ id }: { id: string }) {
 
   return (
     <group ref={group} onClick={onClick}>
-      <primitive object={model} />
+      <group ref={body}>
+        <primitive object={model} />
+      </group>
+      <group ref={car} visible={false}>
+        <Car colorIndex={hashOf(id)} />
+      </group>
       {selected && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.45, 0.6, 32]} />

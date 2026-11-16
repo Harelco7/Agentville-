@@ -1,12 +1,10 @@
-import { useMemo } from 'react';
-import type { ThreeEvent } from '@react-three/fiber';
+import { useMemo, useRef, type ReactNode } from 'react';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { Material } from 'three';
-import type { BuildingKind } from '@agentville/core';
+import { Group, Material } from 'three';
 import { gable, Opening, scaledBox, wallPieces } from './geometry';
 import { useMats } from './materials';
 import { useView } from '../store';
-import { CafeInterior, OfficeInterior, ShopInterior } from './Interiors';
 
 const W = 10; // width along x (m)
 const D = 8; // depth along z (m)
@@ -94,7 +92,7 @@ const PARTITION: Opening[] = [
 const PARTITION_SIDE: Opening[] = [{ x0: -0.2, x1: 0.8, y0: 0, y1: 2.2, kind: 'gap' }];
 
 /** Furniture for a living room, kitchen and bedroom. Seen through windows and in cutaway. */
-function Interior({ accent }: { accent: string }) {
+export function Interior({ accent }: { accent: string }) {
   const m = useMats();
   const y = BASE;
   const fabric = m.fabric(accent);
@@ -160,29 +158,97 @@ function Interior({ accent }: { accent: string }) {
   );
 }
 
+export const SHOPFRONT: Opening[] = [
+  { x0: -0.6, x1: 0.6, y0: 0, y1: 2.3, kind: 'door' },
+  { x0: -4.3, x1: -1.0, y0: 0.35, y1: 2.6, kind: 'window' },
+  { x0: 1.0, x1: 4.3, y0: 0.35, y1: 2.6, kind: 'window' },
+];
+export const GRAND: Opening[] = [
+  { x0: -0.7, x1: 0.7, y0: 0, y1: 2.5, kind: 'door' },
+  { x0: -4.1, x1: -3.0, y0: 0.8, y1: 2.5, kind: 'window' },
+  { x0: -2.4, x1: -1.3, y0: 0.8, y1: 2.5, kind: 'window' },
+  { x0: 1.3, x1: 2.4, y0: 0.8, y1: 2.5, kind: 'window' },
+  { x0: 3.0, x1: 4.1, y0: 0.8, y1: 2.5, kind: 'window' },
+];
+
 export interface HouseProps {
   id: string;
-  kind: Exclude<BuildingKind, 'park' | 'tech'>;
-  name: string;
   position: [number, number, number];
   rotationY: number;
   walls: 'brick' | 'plaster' | 'plasterBlue';
   roof: 'red' | 'slate';
   accent: string;
+  /** Furniture inside the ground floor. */
+  interior?: ReactNode;
+  /** A sign over the door, or nothing for a private home. */
+  sign?: string | null;
+  /** Floors above the ground floor. */
+  upper?: number;
+  /** A flat roof with a parapet instead of a pitched one. */
+  flat?: boolean;
+  front?: Opening[];
+  /** No inner walls (shops, the club). */
+  open?: boolean;
+  /** Extras in the building's own frame: awnings, columns, a pool. */
+  children?: ReactNode;
 }
 
-/** A detached building that faces +z in its own frame: a home, the café, the shop or the office. Click it to see inside. */
-export function House({ id, kind, name, position, rotationY, walls, roof, accent }: HouseProps) {
+/** The closed floors above the ground floor: walls with lit windows. */
+function UpperFloors({ floors, material, texScale }: { floors: number; material: Material; texScale: number }) {
+  const m = useMats();
+  return (
+    <group>
+      {Array.from({ length: floors }, (_, i) => {
+        const y = BASE + H * (i + 1);
+        return (
+          <group key={i} position={[0, y, 0]}>
+            <mesh position={[0, H / 2, 0]} geometry={scaledBox(W, H, D, texScale)} material={material} castShadow receiveShadow />
+            {/* a band between floors */}
+            <mesh position={[0, 0.06, 0]} geometry={scaledBox(W + 0.12, 0.12, D + 0.12)} material={m.trim} />
+            {[-1, 1].map((f) =>
+              [-3, 0, 3].map((x) => (
+                <group key={`${f}${x}`} position={[x, 1.65, f * (D / 2 + 0.02)]}>
+                  <mesh geometry={scaledBox(1.7, 1.4, 0.04)} material={m.glass} />
+                  <mesh position={[0, -0.76, f * 0.06]} geometry={scaledBox(1.9, 0.08, 0.14)} material={m.trim} />
+                </group>
+              )),
+            )}
+            {[-1, 1].map((f) => (
+              <mesh key={f} position={[f * (W / 2 + 0.02), 1.65, 0]} geometry={scaledBox(0.04, 1.4, 1.6)} material={m.glass} />
+            ))}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/**
+ * A building that faces +z in its own frame: a home, a shop, a civic building or a block of flats.
+ * The ground floor is open to view in cutaway (click it); upper floors and the roof lift away.
+ * Far from the camera, the furniture inside isn't drawn.
+ */
+export function House({ id, position, rotationY, walls, roof, accent, interior, sign, upper = 0, flat = false, front = FRONT, open = false, children }: HouseProps) {
   const m = useMats();
   const cut = useView((s) => s.cutaway === id);
   const toggle = useView((s) => s.toggleCutaway);
+  const camera = useThree((s) => s.camera);
+  const inside = useRef<Group>(null);
   const wallMat = m[walls];
   const roofMat = roof === 'red' ? m.roofRed : m.roofSlate;
   const texScale = walls === 'brick' ? 1.4 : 2;
+  const top = BASE + H * (1 + upper);
 
   const slope = Math.hypot(D / 2 + OVERHANG, RISE);
   const pitch = Math.atan2(RISE, D / 2 + OVERHANG);
   const gableGeo = useMemo(() => gable(D, RISE, T, texScale), [texScale]);
+
+  useFrame(() => {
+    const g = inside.current;
+    if (!g) return;
+    const near = Math.hypot(camera.position.x - position[0], camera.position.z - position[2]) < 75;
+    g.visible = cut || near;
+  });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -198,26 +264,38 @@ export function House({ id, kind, name, position, rotationY, walls, roof, accent
       </mesh>
 
       {/* walls: the front and the right side hide in cutaway */}
-      {!cut && <Wall length={W} openings={FRONT} material={wallMat} position={[0, BASE, D / 2 - T / 2]} texScale={texScale} />}
+      {!cut && <Wall length={W} openings={front} material={wallMat} position={[0, BASE, D / 2 - T / 2]} texScale={texScale} />}
       <Wall length={W} openings={BACK} material={wallMat} position={[0, BASE, -D / 2 + T / 2]} rotationY={Math.PI} texScale={texScale} />
       <Wall length={D - 2 * T} openings={SIDE} material={wallMat} position={[-W / 2 + T / 2, BASE, 0]} rotationY={-Math.PI / 2} texScale={texScale} />
       {!cut && <Wall length={D - 2 * T} openings={SIDE} material={wallMat} position={[W / 2 - T / 2, BASE, 0]} rotationY={Math.PI / 2} texScale={texScale} />}
-      <Wall length={W - 2 * T} openings={PARTITION} material={m.paint} position={[0, BASE, -0.5]} texScale={2} />
-      <Wall length={3.3} openings={PARTITION_SIDE} material={m.paint} position={[0.5, BASE, -2.15]} rotationY={Math.PI / 2} texScale={2} />
-
-      {kind === 'home' && <Interior accent={accent} />}
-      {kind === 'cafe' && <CafeInterior accent={accent} />}
-      {kind === 'shop' && <ShopInterior accent={accent} />}
-      {kind === 'office' && <OfficeInterior accent={accent} />}
-      {kind !== 'home' && (
-        <Html position={[0, BASE + H + 0.2, D / 2 + 0.3]} center zIndexRange={[5, 0]}>
-          <div className="sign">{name}</div>
+      <group ref={inside}>
+        {!open && <Wall length={W - 2 * T} openings={PARTITION} material={m.paint} position={[0, BASE, -0.5]} texScale={2} />}
+        {!open && <Wall length={3.3} openings={PARTITION_SIDE} material={m.paint} position={[0.5, BASE, -2.15]} rotationY={Math.PI / 2} texScale={2} />}
+        {interior ?? <Interior accent={accent} />}
+      </group>
+      {sign && (
+        <Html position={[0, top + (flat ? 0.6 : 0.2), D / 2 + 0.3]} center zIndexRange={[5, 0]}>
+          <div className="sign">{sign}</div>
         </Html>
       )}
 
-      {/* roof, gables and chimney hide in cutaway */}
-      {!cut && (
-        <group>
+      {/* upper floors and the roof hide in cutaway */}
+      {!cut && upper > 0 && <UpperFloors floors={upper} material={wallMat} texScale={texScale} />}
+      {!cut && flat && (
+        <group position={[0, top, 0]}>
+          <mesh position={[0, 0.1, 0]} geometry={scaledBox(W + 0.3, 0.2, D + 0.3, 2)} material={m.concrete} castShadow receiveShadow />
+          {[-1, 1].map((f) => (
+            <mesh key={`z${f}`} position={[0, 0.45, f * (D / 2 + 0.05)]} geometry={scaledBox(W + 0.3, 0.5, 0.2, texScale)} material={wallMat} castShadow />
+          ))}
+          {[-1, 1].map((f) => (
+            <mesh key={`x${f}`} position={[f * (W / 2 + 0.05), 0.45, 0]} geometry={scaledBox(0.2, 0.5, D + 0.1, texScale)} material={wallMat} castShadow />
+          ))}
+          {/* a rooftop unit */}
+          <mesh position={[2.6, 0.6, -1.6]} geometry={scaledBox(1.6, 0.8, 1.2)} material={m.metal} castShadow />
+        </group>
+      )}
+      {!cut && !flat && (
+        <group position={[0, top - BASE - H, 0]}>
           <mesh
             position={[0, BASE + H + RISE / 2, (D / 2 + OVERHANG) / 2]}
             rotation={[pitch, 0, 0]}
@@ -243,12 +321,13 @@ export function House({ id, kind, name, position, rotationY, walls, roof, accent
         </group>
       )}
       {cut && (
-        // A soft outline on the ground so the selected house reads clearly.
+        // A soft outline on the ground so the selected building reads clearly.
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[7.2, 7.5, 64]} />
           <meshBasicMaterial color="#f2b544" transparent opacity={0.85} />
         </mesh>
       )}
+      {children}
 
       {/* front step and path to the sidewalk */}
       <mesh position={[0, 0.1, D / 2 + 0.45]} geometry={scaledBox(1.8, 0.2, 0.7, 2)} material={m.concrete} castShadow receiveShadow />

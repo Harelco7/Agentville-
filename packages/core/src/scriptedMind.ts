@@ -2,7 +2,7 @@
  * A mind that needs no LLM: conversations, plans and reactions from templates.
  * Used by the in-browser demo, when no API key is set, and when the daily LLM budget runs out.
  */
-import type { ConverseRequest, ConverseResult, Mind, PlanRequest, PlanResult, ReactRequest, ReactResult, ReflectRequest, ReflectResult } from './mind';
+import { LETTERS, type ConverseRequest, type ConverseResult, type DecideRequest, type DecideResult, type Mind, type PlanRequest, type PlanResult, type ReactRequest, type ReactResult, type ReflectRequest, type ReflectResult, type SpeakerLetter } from './mind';
 import { Rng } from './rng';
 import type { Tone } from './types';
 
@@ -50,8 +50,28 @@ const TOPICS: Topic[] = [
   {
     key: 'the town\'s future',
     lines: (_a, _b, r) => [
-      [r.pick(['Linden Labs is growing. The town could use more places like it.', 'This street needs a proper square.', 'Two houses are still empty. We should bring people in.']), r.pick(['More jobs, more customers for everyone.', 'If the town grows, we all do better.', 'Somebody has to make it happen.'])],
+      [r.pick(['Linden Labs is growing. The town could use more places like it.', 'This street needs a proper square.', 'Half the lots in town are still empty. We should bring people in.']), r.pick(['More jobs, more customers for everyone.', 'If the town grows, we all do better.', 'Somebody has to make it happen.'])],
       [r.pick(['Maybe that somebody is us.', 'I\'ll bring it up at the office.', 'Let\'s talk to the others about it.']), r.pick(['I\'m in.', 'Count me in, if it pays.', 'Fine, but we do the work ourselves.'])],
+    ],
+  },
+  {
+    key: 'business ideas',
+    lines: (_a, _b, r) => [
+      [r.pick(['There are two empty storefronts on the street. Someone should open something.', 'If I had the money I\'d open a proper restaurant.', 'The bank is lending again, I hear.']), r.pick(['A bakery would do well, everyone walks past there.', 'You\'d need a partner with deep pockets.', 'Lending, at their interest rates? Careful.'])],
+      [r.pick(['Want to go in on it together?', 'I\'m serious about it this time.', 'Maybe I\'ll talk to the bank manager.']), r.pick(['Show me the numbers first.', 'Then do it. Nobody else will.', 'Only if you don\'t mind me checking the books.'])],
+    ],
+  },
+  {
+    key: 'new buildings',
+    lines: (_a, _b, r) => [
+      [r.pick(['Did you see they\'re building on one of the empty lots?', 'Hillcrest keeps getting fancier.', 'Mill End needs more flats, they\'re all full.']), r.pick(['The builders were there at seven this morning.', 'Must be nice to afford it up there.', 'More flats means more people and more customers.'])],
+    ],
+  },
+  {
+    key: 'jobs',
+    lines: (_a, _b, r) => [
+      [r.pick(['Ironbridge Works is hiring again.', 'I asked for a raise today.', 'Linden Labs is looking for people.']), r.pick(['Hard work, but it pays the rent.', 'And? Did you get it?', 'Only if you can code, I bet.'])],
+      [r.pick(['Better than nothing.', 'They said to keep it up and we\'ll see.', 'I might learn, honestly.']), r.pick(['True enough.', 'That\'s a maybe, then.', 'Good for you.'])],
     ],
   },
   {
@@ -81,22 +101,32 @@ const TENSE_LINES: [string, string][] = [
   ['I heard you told people I was late again.', 'Well, you were.'],
 ];
 
+const GROUP_CHIME = [
+  'Sorry to butt in, but I heard that too.',
+  'I was just thinking the same thing.',
+  'Mind if I join you? This sounds interesting.',
+  'Honestly, I\'m not so sure about that.',
+  'Ha, that\'s exactly what I told my neighbour.',
+  'Count me in, if it\'s worth the money.',
+];
+
 export class ScriptedMind implements Mind {
   async converse(req: ConverseRequest): Promise<ConverseResult> {
-    const r = new Rng({ rng: hash(`${req.time}|${req.a.name}|${req.b.name}`) });
-    const a = first(req.a.name);
-    const b = first(req.b.name);
-    const fondA = /friend|close|fond/.test(req.aAboutB);
-    const dislike = /dislike|tense|annoy/.test(req.aAboutB + req.bAboutA);
-    const tone: Tone = dislike && r.chance(0.6) ? 'tense' : fondA ? r.pick(['warm', 'friendly']) : r.pick(['friendly', 'neutral', 'friendly']);
+    const names = req.people.map((p) => first(p.name));
+    const r = new Rng({ rng: hash(`${req.time}|${names.join('|')}`) });
+    const [a, b] = names;
+    const feelings = req.feelings.join(' ');
+    const fond = /close friend|a friend/.test(req.feelings[0] ?? '');
+    const dislike = /dislike|annoying/.test(feelings);
+    const tone: Tone = dislike && r.chance(0.6) ? 'tense' : fond ? r.pick(['warm', 'friendly']) : r.pick(['friendly', 'neutral', 'friendly']);
 
-    const lines: { speaker: 'a' | 'b'; text: string }[] = [];
-    const say = (speaker: 'a' | 'b', text: string) => lines.push({ speaker, text });
+    const lines: { speaker: SpeakerLetter; text: string }[] = [];
+    const say = (speaker: SpeakerLetter, text: string) => lines.push({ speaker, text });
     say('a', tone === 'tense' ? `Oh. Hi, ${b}.` : r.pick([`Hi ${b}!`, `${b}, good to see you.`, `Hey ${b}, how are you?`]));
     say('b', tone === 'tense' ? `${a}.` : r.pick([`Hi ${a}! I\'m well, you?`, `Good to see you too.`, `Not bad at all. You?`]));
 
     // Gossip travels: if someone remembers overhearing something, they pass it on.
-    const gossipMemory = [...req.a.memories].reverse().find((m) => /overheard|heard that/i.test(m));
+    const gossipMemory = [...req.people[0].memories].reverse().find((m) => /overheard|heard that/i.test(m));
     let topicKey: string;
     let gossip: string | null = null;
     if (tone === 'tense') {
@@ -105,7 +135,7 @@ export class ScriptedMind implements Mind {
       say('b', y);
       say('a', 'Fine. Let\'s just drop it.');
       topicKey = 'an old grievance';
-      gossip = `${a} and ${b} had words at the ${req.place}`;
+      gossip = `${a} and ${b} had words at ${req.place}`;
     } else if (gossipMemory && r.chance(0.6)) {
       const news = gossipMemory.replace(/^[^:]*:\s*/, '').replace(/^Overheard\s*/i, '');
       say('a', `Did you hear? ${capitalise(news)}`);
@@ -122,22 +152,42 @@ export class ScriptedMind implements Mind {
       }
       topicKey = topic.key;
     }
+    // Others in a group chip in.
+    req.people.slice(2).forEach((_, i) => say(LETTERS[i + 2], r.pick(GROUP_CHIME)));
     say('b', tone === 'tense' ? 'Fine.' : r.pick(['Anyway, I should get going.', 'I\'d better get on with my day.', 'Let\'s catch up again soon.']));
     say('a', tone === 'tense' ? '...' : r.pick(['See you around!', 'Take care.', 'Yes, soon!']));
 
     const change = tone === 'tense' ? -r.int(3, 7) : tone === 'warm' ? r.int(3, 6) : r.int(1, 3);
+    const group = names.length > 2;
+    const others = (i: number) => names.filter((_, j) => j !== i).join(' and ');
     return {
       lines,
       topic: topicKey,
       tone,
-      summary: tone === 'tense' ? `${a} and ${b} had a short, tense exchange about ${topicKey}.` : `${a} and ${b} chatted about ${topicKey}.`,
-      aAffinityChange: change,
-      bAffinityChange: change,
-      aMemory: tone === 'tense' ? `Had an awkward exchange with ${b} about ${topicKey}.` : `Chatted with ${b} about ${topicKey}.`,
-      bMemory: tone === 'tense' ? `${a} brought up ${topicKey} again. It was tense.` : `Chatted with ${a} about ${topicKey}.`,
+      summary:
+        tone === 'tense'
+          ? `${a} and ${b} had a short, tense exchange about ${topicKey}.`
+          : group
+            ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} got talking about ${topicKey}.`
+            : `${a} and ${b} chatted about ${topicKey}.`,
+      affinityChanges: names.map((_, i) => (i < 2 ? change : Math.max(0, change - 1))),
+      memories: names.map((_, i) => (tone === 'tense' && i < 2 ? `Had an awkward exchange with ${others(i)} about ${topicKey}.` : `Chatted with ${others(i)} about ${topicKey}.`)),
       gossip,
-      importance: tone === 'tense' ? 5 : 2,
+      importance: tone === 'tense' ? 5 : group ? 3 : 2,
     };
+  }
+
+  /** The engine lists the sensible option first, so the scripted mind takes it and explains it plainly. */
+  async decide(req: DecideRequest): Promise<DecideResult> {
+    const r = new Rng({ rng: hash(`${req.time}|${req.person.name}|${req.options[0]}`) });
+    const nervous = /quick to worry/.test(req.person.personality);
+    const choice = nervous && req.options.length > 1 && r.chance(0.25) ? req.options.length - 1 : 0;
+    const option = req.options[choice].split(':')[0].replace(/\.$/, '');
+    const reason =
+      choice === 0
+        ? r.pick([`Nobody is going to hand it to me, so I'm going to ${lower(option)}.`, `It's a risk, but I've worked for this. Time to ${lower(option)}.`, `The numbers work if I'm careful, so I'll ${lower(option)}.`])
+        : r.pick([`It's too big a risk right now. I'll ${lower(option)}.`, `Not yet. I'll ${lower(option)} until I'm surer.`]);
+    return { choice, reason };
   }
 
   async planDay(req: PlanRequest): Promise<PlanResult> {
@@ -156,12 +206,23 @@ export class ScriptedMind implements Mind {
   }
 
   async reflect(req: ReflectRequest): Promise<ReflectResult> {
-    const talks = req.person.memories.filter((m) => /chatted|talked/i.test(m)).length;
-    const tense = req.person.memories.some((m) => /tense|awkward|argu/i.test(m));
-    const beliefs: string[] = [];
-    if (talks >= 2) beliefs.push('Talking with neighbours makes my days better.');
-    if (tense) beliefs.push('Some things are better said kindly, or not at all.');
-    if (!beliefs.length) beliefs.push('A quiet day can be a good day.');
+    const p = req.person;
+    const mem = p.memories.join(' ');
+    const r = new Rng({ rng: hash(`${p.name}|${p.memories.length}|${p.money}`) });
+    // Lessons drawn from what actually happened to them, in their own circumstances.
+    const options: string[] = [];
+    if (/chatted|talked/i.test(mem)) options.push('Talking with neighbours makes my days better.', 'You learn a lot just by listening to people in this town.', 'The right conversation can open a door.');
+    if (/tense|awkward|argu|fell out/i.test(mem)) options.push('Some things are better said kindly, or not at all.', 'I should pick my battles more carefully.');
+    if (/loan|mortgage|borrow|debt/i.test(mem)) options.push('Debt is a promise I have to keep every single day.', 'Borrowing is easy; paying it back is the real work.');
+    if (/price|cheaper|undercut|price war/i.test(mem)) options.push('If someone sells it cheaper, people notice fast.', 'Nobody in this town owes you their custom.');
+    if (/opened|business|shop|bakery/i.test(mem)) options.push('A business is only as good as its last week of takings.', 'Ideas are cheap; opening the doors is what counts.');
+    if (/fired|laid off|lost (my|the) job/i.test(mem)) options.push('Nothing at work is guaranteed. I need a plan B.', 'Showing up is half the job, and I will not forget it.');
+    if (/promot|raise/i.test(mem)) options.push('Hard work does get noticed here, eventually.');
+    if (/moved|new home|house|flat|villa/i.test(mem)) options.push('Where you live changes who you see every day.');
+    if (/build|built|construction/i.test(mem)) options.push('This town keeps growing, and I want my piece of it.');
+    if (/\$-|owes|in debt|broke/i.test(p.money)) options.push('Every dollar has to count right now.');
+    if (!options.length) options.push('A quiet day can be a good day.', 'Small steps still move me toward what I want.', `I keep thinking about how to ${lower(p.ambition)}.`);
+    const beliefs = r.shuffle(options).slice(0, options.length > 3 ? 2 : 1);
     return { beliefs };
   }
 
@@ -175,3 +236,4 @@ export class ScriptedMind implements Mind {
 }
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);

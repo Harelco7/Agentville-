@@ -4,22 +4,26 @@ A persistent 3D town of autonomous AI agents. You watch it from above as its "go
 
 The full plan (architecture, phases, LLM cost) lives in the project's plan document. This repository is built one phase at a time.
 
-## Status: Phase 1 (MVP small town)
+## Status: Phase 2 (economy and classes)
 
-- **The street.** One street with 12 lots: 8 homes, the Corner Café, Maple Grocery, the Town Works Office and Linden Park. Built from a seed, so the same seed always gives the same town and the same people.
-- **People.** 10 residents in 6 homes, with a personality, a job, a home, needs, memories, beliefs and relationships.
-- **Daily routines.** Each person picks what to do next by scoring every sensible activity (utility AI): sleep, meals at home or at the café, work, meeting people, a walk in the park, shopping, freshening up. They walk there along the sidewalks and go inside.
-- **The mind.** The big moments go through Claude:
-  - each morning, a plan for the day, sometimes naming someone they want to see;
-  - conversations of at most 20 lines, written as one call, so a chat can never loop;
-  - nightly reflections that become lasting beliefs.
-- **Reactions and gossip.** People nearby overhear conversations and remember them. If something notable happens (an argument, news), friends and outgoing people react out loud. Overheard news comes up in their later conversations, so gossip travels through the town.
-- **Budget.** The weekly LLM budget is split into 7 equal daily caps. Every call is priced and logged. When today's cap is reached, conversations switch to built-in scripts until midnight UTC, so the town never stops.
-- **Always running.** The server runs the town at 1x whether or not anyone is watching, saves it every minute, and restores it on restart.
-- **Linden Labs.** A three-storey glass hi-tech office at the east end of the street, with a software developer and a product designer, and room for newcomers.
-- **God view.** The live 3D street follows the town clock (day and night). It has a town news feed, and a person panel with needs, today's plan, beliefs, relationships, memories and the conversation they are in. Click a building for the cutaway view. Move like on a map: drag or WASD to move, right-drag, Q/E or the on-screen buttons to turn all the way around, double-click to fly somewhere, click a person to follow them. Everyone has their own skin, hair and clothes.
+- **A town of streets.** Three long streets (Oak, Linden, Maple) joined by three cross streets (Mill Lane, Market Street, Hill Road), with 120 lots across three neighbourhoods: **Mill End** (flats, the Ironbridge Works factory, the Lantern Club), **Downtown** (the Corner Café, Maple Grocery, Town Hall, Linden Savings Bank, the clinic, Linden Park, the Linden Lido pool, Linden Labs) and **Hillcrest** (villas with their own pools). Oak and Maple Streets start mostly empty, with lots for sale. People walk along the sidewalks and drive on longer trips.
+- **Classes.** About 30 residents in working-class, middle-class and well-off households. Where you live, what you earn and what you owe decide your standing, and it can change.
+- **A real economy, with no free lunch.**
+  - Jobs with wages, shifts, promotions and firing. The unemployed look for work at Town Hall.
+  - Rent, mortgages and bank loans with daily repayments. Miss too many and the bank forecloses.
+  - Residents open businesses of 11 kinds (café, grocery, bakery, restaurant, gallery, bookshop, salon, gym, boutique, workshop, design studio), with partners who invest for a share of the profit. Theo Novak still dreams of a bakery on Linden Street.
+  - **Competition.** Customers weigh price, quality, distance and loyalty. A shop that loses customers to a cheaper rival cuts its prices; one that's full raises them. When a trade is very profitable, newcomers copy it. Businesses that keep losing money close.
+  - Residents buy lots and have houses, villas, flats and shops built. Builders work on the site, and the building rises hour by hour.
+  - People move up or down, buy homes or downsize, and newcomers arrive when there are jobs and homes.
+- **Big decisions.** Opening a business, buying a home or investing goes through the mind (`decide`), which answers in the person's own voice. The reason is kept in their memories.
+- **Group conversations** of two to four people, with friendships and fallings-out in the news.
+- **God view.** Every building has its own look (flats, villas with pools, a portico for Town Hall and the bank, a red cross on the clinic, neon on the club, a saw-tooth factory roof, shopfronts with awnings, for-sale boards, building sites with scaffolding and a crane). The **news feed** flies the camera to where something happened. The **Market** panel lists every business by trade with today's price against the usual one, customers and daily profit. The person panel shows class, home, debts, business and building project.
 
-**Time scale:** at 1x, one sim day lasts 22.5 real minutes and one sim year (28 days) lasts 10.5 hours, so an 80-year life takes about 5 real weeks. Aging, families and the economy arrive in later phases.
+Phase 1 is all still here: daily routines (utility AI), plans, conversations of at most 20 lines, reactions and gossip, nightly reflections, the LLM budget, and the town that keeps running.
+
+**Old saves.** A town saved by Phase 1 can't run on the new rules, so it is replaced by a new town the first time Phase 2 starts.
+
+**Time scale:** at 1x, one sim day lasts 22.5 real minutes and one sim year (28 days) lasts 10.5 hours, so an 80-year life takes about 5 real weeks. Aging and families arrive in Phase 3.
 
 ## Run it locally
 
