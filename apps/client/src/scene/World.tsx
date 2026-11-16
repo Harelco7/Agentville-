@@ -199,13 +199,7 @@ export function World() {
 
       <CameraRig />
 
-      {LITE ? (
-        <EffectComposer multisampling={0} enableNormalPass={false}>
-          <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-          <SMAA />
-        </EffectComposer>
-      ) : (
+      {LITE ? null : (
         <EffectComposer multisampling={0} enableNormalPass={false}>
           <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} quality="medium" />
           <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />

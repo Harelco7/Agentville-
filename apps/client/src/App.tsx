@@ -14,11 +14,11 @@ export function App() {
   return (
     <ErrorScreen>
       <Canvas
-        shadows="soft"
-        flat
-        dpr={LITE ? [1, 1.5] : [1, 2]}
+        shadows={LITE ? false : 'soft'}
+        flat={!LITE}
+        dpr={LITE ? 1 : [1, 2]}
         camera={{ position: [46, 34, 44], fov: 40, near: 0.1, far: 5000 }}
-        gl={{ antialias: false, powerPreference: 'high-performance' }}
+        gl={{ antialias: LITE, powerPreference: 'high-performance' }}
         onCreated={({ gl }) =>
           gl.domElement.addEventListener('webglcontextlost', () => {
             // The graphics chip gave up (usually out of memory on a phone): say so instead of a blank screen.
