@@ -160,9 +160,28 @@ function FlowsTab({ eco, when }: { eco: EconomyView; when: When }) {
   );
 }
 
-function BusinessesTab({ buildings, name, done }: { buildings: Building[]; name: (id: string) => string; done: () => void }) {
+type Books = NonNullable<NonNullable<Building['business']>['books']>;
+
+/** Today's books so far, from what is in the till right now: settled for real at the start of the next day. */
+function liveBooks(b: Building): Books {
+  const biz = b.business!;
+  const rent = b.ownerId ? 0 : b.rent;
+  const revenue = Math.round(biz.till);
+  const supplies = Math.round(biz.supplies);
+  const wages = Math.round(biz.wagesDue);
+  const profit = revenue - supplies - wages - rent;
+  const toPartners = profit > 0 ? biz.partners.reduce((s, p) => s + Math.round(profit * p.share), 0) : 0;
+  return { revenue, supplies, wages, rent, profit, toOwner: profit - toPartners, toPartners };
+}
+
+function BusinessesTab({ buildings, name, done, when }: { buildings: Building[]; name: (id: string) => string; done: () => void; when: When }) {
   const toggleCutaway = useView((s) => s.toggleCutaway);
-  const list = useMemo(() => buildings.filter((b) => b.business).sort((p, q) => (q.business!.books?.revenue ?? 0) - (p.business!.books?.revenue ?? 0)), [buildings]);
+  const today = when === 'today';
+  const booksOf = (b: Building) => (today ? liveBooks(b) : b.business!.books);
+  const list = useMemo(
+    () => buildings.filter((b) => b.business).sort((p, q) => ((today ? liveBooks(q) : q.business!.books)?.revenue ?? 0) - ((today ? liveBooks(p) : p.business!.books)?.revenue ?? 0)),
+    [buildings, today],
+  );
   if (!list.length) return <p className="sub">No businesses yet.</p>;
   const go = (b: Building) => {
     flyCamera(lotCentre(b));
@@ -190,7 +209,7 @@ function BusinessesTab({ buildings, name, done }: { buildings: Building[]; name:
         <tbody>
           {list.map((b) => {
             const biz = b.business!;
-            const k = biz.books;
+            const k = booksOf(b);
             const kind = BUSINESSES[biz.type];
             const pct = Math.round((biz.priceFactor - 1) * 100);
             return (
@@ -208,7 +227,7 @@ function BusinessesTab({ buildings, name, done }: { buildings: Building[]; name:
                   {money(kind.price * biz.priceFactor)}
                   {pct !== 0 && <span className={pct < 0 ? 'cut' : 'up'}> {pct > 0 ? `+${pct}` : pct}%</span>}
                 </td>
-                <td>{biz.lastSales}</td>
+                <td>{today ? biz.sales : biz.lastSales}</td>
                 <td>{k ? money(k.revenue) : '–'}</td>
                 <td>{k ? money(k.supplies) : '–'}</td>
                 <td>{k ? money(k.wages) : '–'}</td>
@@ -225,7 +244,7 @@ function BusinessesTab({ buildings, name, done }: { buildings: Building[]; name:
           })}
         </tbody>
       </table>
-      <p className="sub">Yesterday’s books. Takings minus supplies, staff wages and shop rent is the profit; partners get their share and the owner keeps the rest, or covers the loss.</p>
+      <p className="sub">{today ? 'Today so far, updated every hour; the day closes at midnight, when the owner and partners are paid.' : 'Yesterday’s books.'} Takings minus supplies, staff wages and shop rent is the profit; partners get their share and the owner keeps the rest, or covers the loss.</p>
     </div>
   );
 }
@@ -263,7 +282,7 @@ function PeopleTab({ eco, done }: { eco: EconomyView; done: () => void }) {
 export function Economy() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('flows');
-  const [when, setWhen] = useState<When>('yesterday');
+  const [when, setWhen] = useState<When>('today');
   const eco = useTown((s) => s.tick?.economy);
   const buildings = useTown((s) => s.buildings);
   const agents = useTown((s) => s.tick?.agents);
@@ -286,12 +305,12 @@ export function Economy() {
                   ['people', 'People'],
                 ] as [Tab, string][]
               ).map(([t, label]) => (
-                <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+                <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => { setTab(t); if (t === 'businesses' && when === 'week') setWhen('today'); }}>
                   {label}
                 </button>
               ))}
             </div>
-            {tab === 'flows' && (
+            {tab !== 'people' && (
               <div className="presets" role="group" aria-label="Period">
                 {(
                   [
@@ -299,7 +318,7 @@ export function Economy() {
                     ['today', 'Today'],
                     ['week', '7 days'],
                   ] as [When, string][]
-                ).map(([w, label]) => (
+                ).filter(([w]) => tab === 'flows' || w !== 'week').map(([w, label]) => (
                   <button key={w} type="button" aria-pressed={when === w} className={when === w ? 'active' : ''} onClick={() => setWhen(w)}>
                     {label}
                   </button>
@@ -316,7 +335,7 @@ export function Economy() {
             ) : tab === 'flows' ? (
               <FlowsTab eco={eco} when={when} />
             ) : tab === 'businesses' ? (
-              <BusinessesTab buildings={buildings} name={name} done={() => setOpen(false)} />
+              <BusinessesTab buildings={buildings} name={name} done={() => setOpen(false)} when={when === 'week' ? 'today' : when} />
             ) : (
               <PeopleTab eco={eco} done={() => setOpen(false)} />
             )}
