@@ -129,3 +129,5 @@ button.active { background: var(--ink); color: var(--panel); }
 
 body[data-gl-lost='1']::after { content: 'The 3D view stopped: this device ran out of graphics memory. Reload the page, or add ?lite to the address for a lighter view.'; position: fixed; inset: 40% 16px auto; z-index: 99; padding: 16px; border-radius: 14px; background: #1f2a24; color: #fffdf8; font: 700 15px/1.4 system-ui, sans-serif; text-align: center; }
 body:has(.error-screen)[data-gl-lost='1']::after { display: none; }
+.person-tag .agent-label { pointer-events: auto; cursor: pointer; min-height: 0; font: inherit; font-size: 11px; color: var(--ink); border: 0; }
+.person-tag .agent-label:hover { background: #fff; outline: 2px solid var(--accent); }

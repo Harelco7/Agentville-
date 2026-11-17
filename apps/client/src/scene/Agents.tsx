@@ -128,10 +128,18 @@ function Person({ id }: { id: string }) {
       <Html position={[0, 2.05, 0]} center zIndexRange={[20, 10]}>
         <div className={`person-tag${selected ? ' selected' : ''}`}>
           {speaking && <div className="bubble">{speaking}</div>}
-          <div className="agent-label">
+          <button
+            type="button"
+            className="agent-label"
+            aria-label={`Show ${name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              select(selected ? null : id);
+            }}
+          >
             <strong>{name}</strong>
             {selected && <span>{activity}</span>}
-          </div>
+          </button>
         </div>
       </Html>
     </group>
