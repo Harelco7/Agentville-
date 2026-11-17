@@ -5,6 +5,7 @@ import { AgentPanel } from './AgentPanel';
 import { CameraPad } from './CameraPad';
 import { Feed } from './Feed';
 import { Market } from './Market';
+import { Economy } from './Economy';
 
 const SPEEDS = [1, 10, 60];
 
@@ -96,6 +97,7 @@ export function Hud() {
       <CameraPad />
       <Feed />
       <Market />
+      <Economy />
       <AgentPanel />
       <div className="hint">Drag or WASD to move · Right-drag, Q/E or the buttons to turn all the way around · Scroll to zoom · Double-click to fly there · Click the news to fly to it · Click a building to look inside · Click a person to follow them</div>
     </>

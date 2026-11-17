@@ -8,7 +8,7 @@ import { ANCHORS, type Anchor, type AnchorGroup, isOutdoor, route, sidewalkPoint
 import { LETTERS, MAX_CONVERSATION_LINES, type ConverseResult, type Mind, type PersonBrief } from './mind';
 import { Rng } from './rng';
 import type { AgentDetail } from './protocol';
-import type { ActionKind, AgentState, AgentView, Building, Conversation, FeedEvent, FeedKind, Memory, MemoryKind, NeedKey, TickView, Vec2, WorldState } from './types';
+import type { ActionKind, AgentState, AgentView, Building, EconomyView, Conversation, FeedEvent, FeedKind, Memory, MemoryKind, NeedKey, TickView, Vec2, WorldState } from './types';
 import { personalityText } from './worldgen';
 import { looksOf } from './looks';
 import { BUSINESSES, CLASS_WORD, classOfHome, PRICES } from './catalog';
@@ -467,6 +467,22 @@ export class Engine {
     }
   }
 
+  /** Money flows for the dashboard. Cheap: a few sums over the residents. */
+  economyView(): EconomyView {
+    const l = this.economy.ledger();
+    const byMoney = [...this.world.agents].sort((p, q) => q.money - p.money);
+    const who = (a: AgentState) => ({ id: a.id, name: `${a.name} ${a.surname}`, money: Math.round(a.money) });
+    return {
+      today: l.today,
+      history: l.history,
+      householdMoney: Math.round(this.world.agents.reduce((s, a) => s + a.money, 0)),
+      debt: Math.round(this.world.agents.reduce((s, a) => s + a.debts.reduce((t, d) => t + d.balance, 0), 0)),
+      treasury: Math.round(this.world.treasury),
+      richest: byMoney.slice(0, 5).map(who),
+      poorest: byMoney.slice(-5).reverse().map(who),
+    };
+  }
+
   /** Pick a free spot in the group, so two people don't stand on the same chair. */
   private pickAnchor(b: Building, group: AnchorGroup, a: AgentState): number {
     const list = ANCHORS[b.kind][group] ?? [];
@@ -871,6 +887,7 @@ export class Engine {
   view(): TickView {
     return {
       time: this.world.time,
+      economy: this.economyView(),
       agents: this.world.agents.map((a): AgentView => ({
         id: a.id,
         name: a.name,
