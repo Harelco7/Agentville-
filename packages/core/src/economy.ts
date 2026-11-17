@@ -11,7 +11,7 @@ import { dayOf, isWeekend } from './clock';
 import type { Engine } from './engine';
 import { bioOf, makePerson, rentFor } from './worldgen';
 import { LOT_XS, sidewalkPoint, streetOf } from './layout';
-import type { AgentState, Building, BuildingKind, Business, BusinessType, District } from './types';
+import type { AgentState, Building, BuildingKind, Business, BusinessType, District, FlowKey, Ledger } from './types';
 
 /** Most people a town of this size can hold before newcomers stop arriving. */
 export const MAX_POPULATION = 70;
@@ -108,8 +108,37 @@ export class Economy {
     return Math.max(0, Math.floor((free * BANK.loanDays) / (1 + BANK.loanInterest) / 100) * 100);
   }
 
+  /** Counts money moving in town, for the economy dashboard. */
+  flow(key: FlowKey, amount: number): void {
+    if (!amount) return;
+    const l = this.ledger();
+    l.today[key] = Math.round(((l.today[key] ?? 0) + amount) * 100) / 100;
+  }
+
+  ledger(): Ledger {
+    return (this.w.ledger ??= { day: dayOf(this.w.time), today: {}, history: [] });
+  }
+
+  /** Close the day's books for the whole town and start a new page. */
+  private closeLedger(day: number): void {
+    const l = this.ledger();
+    if (l.day === day) return;
+    l.history.push({
+      day: l.day,
+      flows: l.today,
+      householdMoney: Math.round(this.w.agents.reduce((s, a) => s + a.money, 0)),
+      debt: Math.round(this.w.agents.reduce((s, a) => s + a.debts.reduce((t, d) => t + d.balance, 0), 0)),
+      treasury: Math.round(this.w.treasury),
+      people: this.w.agents.length,
+    });
+    l.history = l.history.slice(-21);
+    l.today = {};
+    l.day = day;
+  }
+
   borrow(a: AgentState, amount: number, kind: 'loan' | 'mortgage', purpose: string): void {
     if (amount <= 0) return;
+    this.flow('loans', amount);
     const days = kind === 'loan' ? BANK.loanDays : BANK.mortgageDays;
     const interest = kind === 'loan' ? BANK.loanInterest : BANK.mortgageInterest;
     a.debts.push({ kind, balance: Math.round(amount * (1 + interest)), perDay: Math.round((amount * (1 + interest)) / days), purpose });
@@ -125,22 +154,30 @@ export class Economy {
   newDay(a: AgentState, day: number): void {
     const yesterdayWasWorkday = !isWeekend((day - 2) * 1440 + 600);
     // Pension and rent.
-    if (a.pension) this.e.earn(a, a.pension);
+    if (a.pension) {
+      this.e.earn(a, a.pension);
+      this.flow('pensions', a.pension);
+    }
     const home = this.homeOf(a);
     const share = 1 / Math.max(1, this.household(a).length);
     if (a.tenure === 'rent') {
       const due = home.rent * share;
       this.e.pay(a, due);
+      this.flow('rent', due);
       const landlord = home.ownerId ? this.e.agent(home.ownerId) : undefined;
-      if (landlord && landlord.household !== a.household) this.e.earn(landlord, due);
-      else this.w.treasury += due;
+      if (landlord && landlord.household !== a.household) {
+        this.e.earn(landlord, due);
+        this.flow('landlordRent', due);
+      } else this.w.treasury += due;
     } else {
       this.e.pay(a, UPKEEP[homeType(home.kind)] * share);
+      this.flow('upkeep', UPKEEP[homeType(home.kind)] * share);
     }
     // Loans and mortgages.
     for (const d of a.debts) {
       const pay = Math.min(d.perDay, d.balance);
       this.e.pay(a, pay);
+      this.flow('repayments', pay);
       d.balance = Math.round(d.balance - pay);
       if (d.balance <= 0) {
         this.e.remember(a, 'life', `Paid off ${d.purpose}.`, 7);
@@ -189,6 +226,7 @@ export class Economy {
     const day = dayOf(this.w.time);
     if (day === this.lastTownDay) return;
     this.lastTownDay = day;
+    this.closeLedger(day);
     const open = this.w.buildings.filter((b) => b.business);
     for (const b of open) this.setPrices(b);
     for (const b of open) if (b.business) this.settle(b);
@@ -207,6 +245,11 @@ export class Economy {
     const rent = b.ownerId ? 0 : b.rent;
     const profit = Math.round(biz.till - supplies - biz.wagesDue - rent);
     if (rent) this.w.treasury += rent;
+    this.flow('supplies', supplies);
+    this.flow('shopRent', rent);
+    const books = { revenue: Math.round(biz.till), supplies: Math.round(supplies), wages: Math.round(biz.wagesDue), rent, profit, toOwner: 0, toPartners: 0 };
+    biz.totalRevenue = Math.round((biz.totalRevenue ?? 0) + biz.till);
+    biz.totalProfit = Math.round((biz.totalProfit ?? 0) + profit);
     biz.lastProfit = Math.round(biz.lastProfit * 0.5 + profit * 0.5);
     biz.till = 0;
     biz.wagesDue = 0;
@@ -221,13 +264,20 @@ export class Economy {
         const cut = Math.round(profit * p.share);
         this.e.earn(partner, cut);
         left -= cut;
+        books.toPartners += cut;
       }
       this.e.earn(owner, left);
+      books.toOwner = left;
+      this.flow('ownerProfit', left);
+      this.flow('partnerProfit', books.toPartners);
       biz.badDays = 0;
     } else {
       this.e.pay(owner, -profit);
+      books.toOwner = profit;
+      this.flow('losses', -profit);
       biz.badDays++;
     }
+    biz.books = books;
     // A business that keeps losing money lets its staff go first.
     const staff = this.staffOf(b);
     if (biz.badDays >= 3 && staff.length && this.capacity(b) < staff.length) {
@@ -295,6 +345,7 @@ export class Economy {
     const price = this.priceAt(place, usual);
     this.e.pay(a, price);
     const biz = place.business;
+    this.flow(biz ? 'sales' : 'services', price);
     if (biz) {
       biz.till += price;
       biz.sales++;
@@ -321,7 +372,11 @@ export class Economy {
     const pay = a.wage * hours;
     if (!pay) return;
     this.e.earn(a, pay);
-    if (place.business) place.business.wagesDue += pay;
+    this.flow('wages', pay);
+    if (place.business) {
+      place.business.wagesDue += pay;
+      this.flow('staffWages', pay);
+    }
     else if (place.kind === 'townhall' || place.kind === 'park' || place.kind === 'pool' || place.kind === 'clinic') this.w.treasury -= pay;
   }
 
@@ -516,11 +571,13 @@ export class Economy {
           const back = (partner.relationships[a.id] ??= { affinity: 0, talks: 0, lastTalk: null });
           back.affinity = Math.min(100, back.affinity + 8);
         }
+        this.flow('investBusiness', store ? cost : cost - lot!.value);
         if (store) {
           this.w.treasury += cost;
           this.openBusiness(store, a, type, partners);
         } else {
           this.w.treasury += lot!.value;
+          this.flow('land', lot!.value);
           a.project = { kind: 'open_business', business: type, buildingId: lot!.id, partnerId: partner?.id };
           this.startConstruction(lot!, 'store', a, type, partners);
         }
@@ -555,6 +612,8 @@ export class Economy {
               this.e.pay(a, mortgage);
             }
             this.w.treasury += lot.value;
+            this.flow('land', lot.value);
+            this.flow('investHomes', cost - lot.value);
             a.project = { kind: 'build_home', buildingId: lot.id };
             this.startConstruction(lot, 'villa', a);
           },
@@ -593,6 +652,8 @@ export class Economy {
             this.borrow(a, cost - down, 'mortgage', `building a house at ${place(lot)}`);
             this.e.pay(a, cost - down);
             this.w.treasury += lot.value;
+            this.flow('land', lot.value);
+            this.flow('investHomes', cost - lot.value);
             a.project = { kind: 'build_home', buildingId: lot.id };
             this.startConstruction(lot, 'home', a);
           },
@@ -625,6 +686,8 @@ export class Economy {
           this.e.pay(a, loan);
         }
         this.w.treasury += lot.value;
+        this.flow('land', lot.value);
+        this.flow('investFlats', cost - lot.value);
         this.housingShortage = 0;
         a.project = { kind: 'build_apartments', buildingId: lot.id };
         this.startConstruction(lot, 'apartments', a);

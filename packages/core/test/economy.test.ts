@@ -82,6 +82,19 @@ describe('the economy', () => {
       const who = engine.agent(e.agents[0])!;
       expect(who.memories.some((m) => m.text.startsWith('Decided to') || m.kind === 'reflection')).toBe(true);
     }
+    // The books record where the money went every day.
+    const view = engine.view().economy!;
+    expect(view.history.length).toBeGreaterThanOrEqual(9);
+    const day = view.history[view.history.length - 1].flows;
+    for (const k of ['wages', 'sales', 'rent', 'supplies'] as const) expect(day[k] ?? 0).toBeGreaterThan(0);
+    const invested = view.history.reduce((s, d) => s + (d.flows.investBusiness ?? 0) + (d.flows.investHomes ?? 0) + (d.flows.investFlats ?? 0), 0);
+    expect(invested).toBeGreaterThan(0);
+    const books = engine.world.buildings.filter((b) => b.business?.books);
+    expect(books.length).toBeGreaterThan(0);
+    for (const { business } of books) {
+      const k = business!.books!;
+      expect(Math.abs(k.profit - (k.revenue - k.supplies - k.wages - k.rent))).toBeLessThanOrEqual(2);
+    }
     // Feed events say where they happened, so the camera can fly there.
     expect(feed.filter((e) => e.kind !== 'system').every((e) => !e.agents.length || e.at)).toBe(true);
     // Nobody is anywhere strange.

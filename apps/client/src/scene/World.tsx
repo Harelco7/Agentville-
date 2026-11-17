@@ -14,6 +14,7 @@ import { People, TownClock } from './Agents';
 import { CutawayLight } from './CutawayLight';
 import { CameraRig } from './CameraRig';
 import { useTown } from '../town/store';
+import { LITE } from '../quality';
 
 const LONG = STREETS.filter((s) => s.axis === 'x');
 const nearCross = (x: number, gap: number) => CROSS_XS.some((c) => Math.abs(x - c) < gap);
@@ -198,13 +199,15 @@ export function World() {
 
       <CameraRig />
 
-      <EffectComposer multisampling={0} enableNormalPass={false}>
-        <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} quality="medium" />
-        <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
-        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        <Vignette offset={0.3} darkness={0.45} />
-        <SMAA />
-      </EffectComposer>
+      {LITE ? null : (
+        <EffectComposer multisampling={0} enableNormalPass={false}>
+          <N8AO aoRadius={1.2} intensity={2.2} distanceFalloff={0.6} quality="medium" />
+          <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <Vignette offset={0.3} darkness={0.45} />
+          <SMAA />
+        </EffectComposer>
+      )}
     </MaterialsContext.Provider>
   );
 }

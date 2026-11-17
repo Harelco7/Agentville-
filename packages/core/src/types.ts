@@ -54,6 +54,11 @@ export interface Business {
   /** Days in a row the business lost money. */
   badDays: number;
   openedDay: number;
+  /** Yesterday's books, for the dashboard. */
+  books?: { revenue: number; supplies: number; wages: number; rent: number; profit: number; toOwner: number; toPartners: number };
+  /** Since opening. */
+  totalRevenue?: number;
+  totalProfit?: number;
 }
 
 /** A building going up on a lot. */
@@ -315,6 +320,8 @@ export interface WorldState {
   buildingsRev: number;
   /** Money the town has collected and spent: taxes and public wages. */
   treasury: number;
+  /** Money flows by day (missing in towns saved before it existed). */
+  ledger?: Ledger;
 }
 
 /** What the 3D view needs for one agent every tick. */
@@ -353,4 +360,64 @@ export interface TickView {
   agents: AgentView[];
   /** World.buildingsRev: when it changes, the buildings need to be fetched again. */
   rev: number;
+  /** Where the town's money comes from and goes, for the economy dashboard. */
+  economy?: EconomyView;
+}
+
+/**
+ * Every kind of money movement in town, counted per day:
+ * - income: wages, pensions, business profit to owners and partners, rent to private landlords;
+ * - spending: at businesses (sales), at town services, rent and upkeep, loan repayments;
+ * - business costs: supplies, wages to staff (part of wages), shop rent, losses covered by owners;
+ * - the bank: new loans and repayments;
+ * - investment: opening businesses, building homes and flats, buying land.
+ */
+export type FlowKey =
+  | 'wages'
+  | 'staffWages'
+  | 'pensions'
+  | 'sales'
+  | 'services'
+  | 'rent'
+  | 'landlordRent'
+  | 'upkeep'
+  | 'repayments'
+  | 'loans'
+  | 'supplies'
+  | 'shopRent'
+  | 'ownerProfit'
+  | 'partnerProfit'
+  | 'losses'
+  | 'investBusiness'
+  | 'investHomes'
+  | 'investFlats'
+  | 'land';
+export type Flows = Partial<Record<FlowKey, number>>;
+
+export interface DaySnapshot {
+  day: number;
+  flows: Flows;
+  /** Everyone's savings added up (negative balances count), the money owed to the bank, and the town's own funds. */
+  householdMoney: number;
+  debt: number;
+  treasury: number;
+  people: number;
+}
+
+export interface Ledger {
+  day: number;
+  today: Flows;
+  /** The last 21 days, oldest first. */
+  history: DaySnapshot[];
+}
+
+export interface EconomyView {
+  today: Flows;
+  history: DaySnapshot[];
+  householdMoney: number;
+  debt: number;
+  treasury: number;
+  /** The richest and the poorest residents, by savings. */
+  richest: { id: string; name: string; money: number }[];
+  poorest: { id: string; name: string; money: number }[];
 }

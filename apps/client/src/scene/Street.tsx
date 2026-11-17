@@ -6,6 +6,7 @@ import { scaledBox } from './geometry';
 import { useMats } from './materials';
 import { sunAt } from './sun';
 import { useView } from '../store';
+import { LITE } from '../quality';
 
 export const ROAD_HALF = 3.5;
 export const WALK_Z = 4.6; // centre line of each sidewalk, from the street's centre line
@@ -244,7 +245,7 @@ export function StreetLight({ position, facing = 1 }: { position: [number, numbe
   );
 }
 
-const LIT = 8;
+const LIT = LITE ? 3 : 8;
 
 /**
  * Real light from street lamps is costly, so a handful of lights move to the lamps nearest
